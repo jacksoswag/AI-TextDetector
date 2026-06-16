@@ -1,0 +1,291 @@
+Building for debugging...
+[0/1] Write swift-version--58304C5D6DBC2206.txt
+[2/14] Compiling FilterCore PrivacyManager.swift
+/Users/jacksonadams/Code/ai-detector/FilterCore/Sources/FilterCore/Privacy/PrivacyManager.swift:51:13: error: cannot find 'FeedbackEngine' in scope
+49 |             StatisticsManager.Key.words, StatisticsManager.Key.blocks,
+50 |             StatisticsManager.Key.reveals,
+51 |         ] + FeedbackEngine.storageKeys
+   |             `- error: cannot find 'FeedbackEngine' in scope
+52 |         keys.forEach(defaults.removeObject(forKey:))
+53 |         // Custom mascots are user-created local data and must go with the
+
+/Users/jacksonadams/Code/ai-detector/FilterCore/Sources/FilterCore/Privacy/PrivacyManager.swift:48:31: error: type 'CalibrationEngine' has no member 'emaKey'
+46 |             SettingsKey.minWords, SettingsKey.nativeScanning, SettingsKey.launchAtLoginDone,
+47 |             "trust.domains", "learning.domainPrefs", "pets.activeID",
+48 |             CalibrationEngine.emaKey,
+   |                               `- error: type 'CalibrationEngine' has no member 'emaKey'
+49 |             StatisticsManager.Key.words, StatisticsManager.Key.blocks,
+50 |             StatisticsManager.Key.reveals,
+[3/15] Compiling FilterCore DomainRouter.swift
+/Users/jacksonadams/Code/ai-detector/FilterCore/Sources/FilterCore/Detection/DomainRouter.swift:251:9: error: cannot find 'DiagnosticsManager' in scope
+249 |         lock.lock(); defer { lock.unlock() }
+250 |         let value = store[key]
+251 |         DiagnosticsManager.shared.recordCache(type: "routing", hit: value != nil, time: CFAbsoluteTimeGetCurrent() - start, size: store.count)
+    |         `- error: cannot find 'DiagnosticsManager' in scope
+252 |         return value
+253 |     }
+[4/15] Compiling FilterCore TemporalStabilizer.swift
+/Users/jacksonadams/Code/ai-detector/FilterCore/Sources/FilterCore/Detection/DomainRouter.swift:251:9: error: cannot find 'DiagnosticsManager' in scope
+249 |         lock.lock(); defer { lock.unlock() }
+250 |         let value = store[key]
+251 |         DiagnosticsManager.shared.recordCache(type: "routing", hit: value != nil, time: CFAbsoluteTimeGetCurrent() - start, size: store.count)
+    |         `- error: cannot find 'DiagnosticsManager' in scope
+252 |         return value
+253 |     }
+[5/15] Compiling FilterCore AppGroup.swift
+[6/15] Compiling FilterCore CalibrationEngine.swift
+[7/17] Compiling FilterCore TextDomain.swift
+/Users/jacksonadams/Code/ai-detector/FilterCore/Sources/FilterCore/Diagnostics/FeedbackTrainingPipeline.swift:3:15: error: type 'TrainingExample' does not conform to protocol 'Decodable'
+  1 | import Foundation
+  2 | 
+  3 | public struct TrainingExample: Codable, Sendable {
+    |               `- error: type 'TrainingExample' does not conform to protocol 'Decodable'
+  4 |     public let featureVector: HeuristicFeatures
+  5 |     public let domainEmbedding: [Float]?
+  6 |     public let stage1Output: ClassifierOutput
+    |                `- note: cannot automatically synthesize 'Decodable' because 'ClassifierOutput' does not conform to 'Decodable'
+  7 |     public let stage2Output: ClassifierOutput?
+    |                `- note: cannot automatically synthesize 'Decodable' because 'ClassifierOutput?' does not conform to 'Decodable'
+  8 |     public let finalLabel: String // correct_detection, false_positive, false_negative, uncertain
+  9 |     public let domain: String
+
+Swift.Decodable.init:2:1: note: protocol requires initializer 'init(from:)' with type 'Decodable'
+1 | protocol Decodable {
+2 | init(from decoder: any Decoder) throws}
+  | `- note: protocol requires initializer 'init(from:)' with type 'Decodable'
+3 | 
+
+/Users/jacksonadams/Code/ai-detector/FilterCore/Sources/FilterCore/Diagnostics/FeedbackTrainingPipeline.swift:3:15: error: type 'TrainingExample' does not conform to protocol 'Encodable'
+  1 | import Foundation
+  2 | 
+  3 | public struct TrainingExample: Codable, Sendable {
+    |               `- error: type 'TrainingExample' does not conform to protocol 'Encodable'
+  4 |     public let featureVector: HeuristicFeatures
+  5 |     public let domainEmbedding: [Float]?
+  6 |     public let stage1Output: ClassifierOutput
+    |                `- note: cannot automatically synthesize 'Encodable' because 'ClassifierOutput' does not conform to 'Encodable'
+  7 |     public let stage2Output: ClassifierOutput?
+    |                `- note: cannot automatically synthesize 'Encodable' because 'ClassifierOutput?' does not conform to 'Encodable'
+  8 |     public let finalLabel: String // correct_detection, false_positive, false_negative, uncertain
+  9 |     public let domain: String
+
+Swift.Encodable.encode:2:6: note: protocol requires function 'encode(to:)' with type 'Encodable'
+1 | protocol Encodable {
+2 | func encode(to encoder: any Encoder) throws}
+  |      `- note: protocol requires function 'encode(to:)' with type 'Encodable'
+3 | 
+[8/17] Compiling FilterCore FeedbackTrainingPipeline.swift
+/Users/jacksonadams/Code/ai-detector/FilterCore/Sources/FilterCore/Diagnostics/FeedbackTrainingPipeline.swift:3:15: error: type 'TrainingExample' does not conform to protocol 'Decodable'
+  1 | import Foundation
+  2 | 
+  3 | public struct TrainingExample: Codable, Sendable {
+    |               `- error: type 'TrainingExample' does not conform to protocol 'Decodable'
+  4 |     public let featureVector: HeuristicFeatures
+  5 |     public let domainEmbedding: [Float]?
+  6 |     public let stage1Output: ClassifierOutput
+    |                `- note: cannot automatically synthesize 'Decodable' because 'ClassifierOutput' does not conform to 'Decodable'
+  7 |     public let stage2Output: ClassifierOutput?
+    |                `- note: cannot automatically synthesize 'Decodable' because 'ClassifierOutput?' does not conform to 'Decodable'
+  8 |     public let finalLabel: String // correct_detection, false_positive, false_negative, uncertain
+  9 |     public let domain: String
+
+Swift.Decodable.init:2:1: note: protocol requires initializer 'init(from:)' with type 'Decodable'
+1 | protocol Decodable {
+2 | init(from decoder: any Decoder) throws}
+  | `- note: protocol requires initializer 'init(from:)' with type 'Decodable'
+3 | 
+
+/Users/jacksonadams/Code/ai-detector/FilterCore/Sources/FilterCore/Diagnostics/FeedbackTrainingPipeline.swift:3:15: error: type 'TrainingExample' does not conform to protocol 'Encodable'
+  1 | import Foundation
+  2 | 
+  3 | public struct TrainingExample: Codable, Sendable {
+    |               `- error: type 'TrainingExample' does not conform to protocol 'Encodable'
+  4 |     public let featureVector: HeuristicFeatures
+  5 |     public let domainEmbedding: [Float]?
+  6 |     public let stage1Output: ClassifierOutput
+    |                `- note: cannot automatically synthesize 'Encodable' because 'ClassifierOutput' does not conform to 'Encodable'
+  7 |     public let stage2Output: ClassifierOutput?
+    |                `- note: cannot automatically synthesize 'Encodable' because 'ClassifierOutput?' does not conform to 'Encodable'
+  8 |     public let finalLabel: String // correct_detection, false_positive, false_negative, uncertain
+  9 |     public let domain: String
+
+Swift.Encodable.encode:2:6: note: protocol requires function 'encode(to:)' with type 'Encodable'
+1 | protocol Encodable {
+2 | func encode(to encoder: any Encoder) throws}
+  |      `- note: protocol requires function 'encode(to:)' with type 'Encodable'
+3 | 
+[9/17] Compiling FilterCore DetectionEngine.swift
+/Users/jacksonadams/Code/ai-detector/FilterCore/Sources/FilterCore/Detection/DetectionEngine.swift:86:17: warning: initialization of immutable value 'features' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+ 84 |             
+ 85 |             let route = router.route(text: block.text, webDomain: domain)
+ 86 |             let features = heuristics.extractFeatures(block.text)
+    |                 `- warning: initialization of immutable value 'features' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+ 87 |             
+ 88 |             let stage1Out = try? await stage1?.score(texts: [block.text]).first
+
+/Users/jacksonadams/Code/ai-detector/FilterCore/Sources/FilterCore/Detection/DetectionEngine.swift:91:17: warning: initialization of immutable value 'embed1' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+ 89 |             let p1 = stage1Out?.aiProbability ?? 0.5
+ 90 |             let unc1 = stage1Out?.uncertainty ?? 0.5
+ 91 |             let embed1 = stage1Out?.embedding
+    |                 `- warning: initialization of immutable value 'embed1' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+ 92 |             
+ 93 |             var pBase = p1
+
+/Users/jacksonadams/Code/ai-detector/FilterCore/Sources/FilterCore/Diagnostics/FeedbackTrainingPipeline.swift:3:15: error: type 'TrainingExample' does not conform to protocol 'Decodable'
+  1 | import Foundation
+  2 | 
+  3 | public struct TrainingExample: Codable, Sendable {
+    |               `- error: type 'TrainingExample' does not conform to protocol 'Decodable'
+  4 |     public let featureVector: HeuristicFeatures
+  5 |     public let domainEmbedding: [Float]?
+  6 |     public let stage1Output: ClassifierOutput
+    |                `- note: cannot automatically synthesize 'Decodable' because 'ClassifierOutput' does not conform to 'Decodable'
+  7 |     public let stage2Output: ClassifierOutput?
+    |                `- note: cannot automatically synthesize 'Decodable' because 'ClassifierOutput?' does not conform to 'Decodable'
+  8 |     public let finalLabel: String // correct_detection, false_positive, false_negative, uncertain
+  9 |     public let domain: String
+
+Swift.Decodable.init:2:1: note: protocol requires initializer 'init(from:)' with type 'Decodable'
+1 | protocol Decodable {
+2 | init(from decoder: any Decoder) throws}
+  | `- note: protocol requires initializer 'init(from:)' with type 'Decodable'
+3 | 
+
+/Users/jacksonadams/Code/ai-detector/FilterCore/Sources/FilterCore/Diagnostics/FeedbackTrainingPipeline.swift:3:15: error: type 'TrainingExample' does not conform to protocol 'Decodable'
+  1 | import Foundation
+  2 | 
+  3 | public struct TrainingExample: Codable, Sendable {
+    |               `- error: type 'TrainingExample' does not conform to protocol 'Decodable'
+  4 |     public let featureVector: HeuristicFeatures
+  5 |     public let domainEmbedding: [Float]?
+  6 |     public let stage1Output: ClassifierOutput
+    |                `- note: cannot automatically synthesize 'Decodable' because 'ClassifierOutput' does not conform to 'Decodable'
+  7 |     public let stage2Output: ClassifierOutput?
+    |                `- note: cannot automatically synthesize 'Decodable' because 'ClassifierOutput?' does not conform to 'Decodable'
+  8 |     public let finalLabel: String // correct_detection, false_positive, false_negative, uncertain
+  9 |     public let domain: String
+
+Swift.Decodable.init:2:1: note: protocol requires initializer 'init(from:)' with type 'Decodable'
+1 | protocol Decodable {
+2 | init(from decoder: any Decoder) throws}
+  | `- note: protocol requires initializer 'init(from:)' with type 'Decodable'
+3 | 
+[10/17] Compiling FilterCore DetectionResult.swift
+/Users/jacksonadams/Code/ai-detector/FilterCore/Sources/FilterCore/Detection/DetectionEngine.swift:86:17: warning: initialization of immutable value 'features' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+ 84 |             
+ 85 |             let route = router.route(text: block.text, webDomain: domain)
+ 86 |             let features = heuristics.extractFeatures(block.text)
+    |                 `- warning: initialization of immutable value 'features' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+ 87 |             
+ 88 |             let stage1Out = try? await stage1?.score(texts: [block.text]).first
+
+/Users/jacksonadams/Code/ai-detector/FilterCore/Sources/FilterCore/Detection/DetectionEngine.swift:91:17: warning: initialization of immutable value 'embed1' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+ 89 |             let p1 = stage1Out?.aiProbability ?? 0.5
+ 90 |             let unc1 = stage1Out?.uncertainty ?? 0.5
+ 91 |             let embed1 = stage1Out?.embedding
+    |                 `- warning: initialization of immutable value 'embed1' was never used; consider replacing with assignment to '_' or removing it [#no-usage]
+ 92 |             
+ 93 |             var pBase = p1
+
+/Users/jacksonadams/Code/ai-detector/FilterCore/Sources/FilterCore/Diagnostics/FeedbackTrainingPipeline.swift:3:15: error: type 'TrainingExample' does not conform to protocol 'Decodable'
+  1 | import Foundation
+  2 | 
+  3 | public struct TrainingExample: Codable, Sendable {
+    |               `- error: type 'TrainingExample' does not conform to protocol 'Decodable'
+  4 |     public let featureVector: HeuristicFeatures
+  5 |     public let domainEmbedding: [Float]?
+  6 |     public let stage1Output: ClassifierOutput
+    |                `- note: cannot automatically synthesize 'Decodable' because 'ClassifierOutput' does not conform to 'Decodable'
+  7 |     public let stage2Output: ClassifierOutput?
+    |                `- note: cannot automatically synthesize 'Decodable' because 'ClassifierOutput?' does not conform to 'Decodable'
+  8 |     public let finalLabel: String // correct_detection, false_positive, false_negative, uncertain
+  9 |     public let domain: String
+
+Swift.Decodable.init:2:1: note: protocol requires initializer 'init(from:)' with type 'Decodable'
+1 | protocol Decodable {
+2 | init(from decoder: any Decoder) throws}
+  | `- note: protocol requires initializer 'init(from:)' with type 'Decodable'
+3 | 
+
+/Users/jacksonadams/Code/ai-detector/FilterCore/Sources/FilterCore/Diagnostics/FeedbackTrainingPipeline.swift:3:15: error: type 'TrainingExample' does not conform to protocol 'Decodable'
+  1 | import Foundation
+  2 | 
+  3 | public struct TrainingExample: Codable, Sendable {
+    |               `- error: type 'TrainingExample' does not conform to protocol 'Decodable'
+  4 |     public let featureVector: HeuristicFeatures
+  5 |     public let domainEmbedding: [Float]?
+  6 |     public let stage1Output: ClassifierOutput
+    |                `- note: cannot automatically synthesize 'Decodable' because 'ClassifierOutput' does not conform to 'Decodable'
+  7 |     public let stage2Output: ClassifierOutput?
+    |                `- note: cannot automatically synthesize 'Decodable' because 'ClassifierOutput?' does not conform to 'Decodable'
+  8 |     public let finalLabel: String // correct_detection, false_positive, false_negative, uncertain
+  9 |     public let domain: String
+
+Swift.Decodable.init:2:1: note: protocol requires initializer 'init(from:)' with type 'Decodable'
+1 | protocol Decodable {
+2 | init(from decoder: any Decoder) throws}
+  | `- note: protocol requires initializer 'init(from:)' with type 'Decodable'
+3 | 
+error: emit-module command failed with exit code 1 (use -v to see invocation)
+[11/19] Emitting module FilterCore
+/Users/jacksonadams/Code/ai-detector/FilterCore/Sources/FilterCore/Diagnostics/FeedbackTrainingPipeline.swift:3:15: error: type 'TrainingExample' does not conform to protocol 'Decodable'
+  1 | import Foundation
+  2 | 
+  3 | public struct TrainingExample: Codable, Sendable {
+    |               `- error: type 'TrainingExample' does not conform to protocol 'Decodable'
+  4 |     public let featureVector: HeuristicFeatures
+  5 |     public let domainEmbedding: [Float]?
+  6 |     public let stage1Output: ClassifierOutput
+    |                `- note: cannot automatically synthesize 'Decodable' because 'ClassifierOutput' does not conform to 'Decodable'
+  7 |     public let stage2Output: ClassifierOutput?
+    |                `- note: cannot automatically synthesize 'Decodable' because 'ClassifierOutput?' does not conform to 'Decodable'
+  8 |     public let finalLabel: String // correct_detection, false_positive, false_negative, uncertain
+  9 |     public let domain: String
+
+Swift.Decodable.init:2:1: note: protocol requires initializer 'init(from:)' with type 'Decodable'
+1 | protocol Decodable {
+2 | init(from decoder: any Decoder) throws}
+  | `- note: protocol requires initializer 'init(from:)' with type 'Decodable'
+3 | 
+
+/Users/jacksonadams/Code/ai-detector/FilterCore/Sources/FilterCore/Diagnostics/FeedbackTrainingPipeline.swift:3:15: error: type 'TrainingExample' does not conform to protocol 'Encodable'
+  1 | import Foundation
+  2 | 
+  3 | public struct TrainingExample: Codable, Sendable {
+    |               `- error: type 'TrainingExample' does not conform to protocol 'Encodable'
+  4 |     public let featureVector: HeuristicFeatures
+  5 |     public let domainEmbedding: [Float]?
+  6 |     public let stage1Output: ClassifierOutput
+    |                `- note: cannot automatically synthesize 'Encodable' because 'ClassifierOutput' does not conform to 'Encodable'
+  7 |     public let stage2Output: ClassifierOutput?
+    |                `- note: cannot automatically synthesize 'Encodable' because 'ClassifierOutput?' does not conform to 'Encodable'
+  8 |     public let finalLabel: String // correct_detection, false_positive, false_negative, uncertain
+  9 |     public let domain: String
+
+Swift.Encodable.encode:2:6: note: protocol requires function 'encode(to:)' with type 'Encodable'
+1 | protocol Encodable {
+2 | func encode(to encoder: any Encoder) throws}
+  |      `- note: protocol requires function 'encode(to:)' with type 'Encodable'
+3 | 
+[12/19] Compiling FilterCore CoreMLClassifier.swift
+/Users/jacksonadams/Code/ai-detector/FilterCore/Sources/FilterCore/Detection/DetectionCache.swift:59:9: error: cannot find 'DiagnosticsManager' in scope
+57 |         let value = store[key]
+58 |         if value != nil { touch(key) }
+59 |         DiagnosticsManager.shared.recordCache(type: "model", hit: value != nil, time: CFAbsoluteTimeGetCurrent() - start, size: store.count)
+   |         `- error: cannot find 'DiagnosticsManager' in scope
+60 |         return value
+61 |     }
+[13/19] Compiling FilterCore DetectionCache.swift
+/Users/jacksonadams/Code/ai-detector/FilterCore/Sources/FilterCore/Detection/DetectionCache.swift:59:9: error: cannot find 'DiagnosticsManager' in scope
+57 |         let value = store[key]
+58 |         if value != nil { touch(key) }
+59 |         DiagnosticsManager.shared.recordCache(type: "model", hit: value != nil, time: CFAbsoluteTimeGetCurrent() - start, size: store.count)
+   |         `- error: cannot find 'DiagnosticsManager' in scope
+60 |         return value
+61 |     }
+[14/19] Compiling FilterCore PetSpeechEngine.swift
+[15/19] Compiling FilterCore SettingsManager.swift
+[16/19] Compiling FilterCore StatisticsManager.swift
+[17/19] Compiling FilterCore DomainTrustManager.swift
+[18/19] Compiling FilterCore SemanticEventLog.swift
+[19/19] Compiling FilterCore PetRegistry.swift

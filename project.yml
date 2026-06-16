@@ -1,0 +1,80 @@
+# XcodeGen project definition.
+#   brew install xcodegen && xcodegen generate
+#
+# Single-process app: no extensions, no app groups, no entitlements needed for
+# local development. The model artifacts in Models/ (produced by
+# scripts/convert-model.py) are bundled into the app as resources.
+
+name: AIContentFilter
+
+options:
+  bundleIdPrefix: dev.aicf
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    # Stable local signing identity (self-signed, created once in the login
+    # keychain). A stable signature means TCC permission grants survive
+    # rebuilds — with ad-hoc signing, every build invalidated them.
+    # For distribution, replace with a Developer ID identity.
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: AICF Local Dev Signing
+    CURRENT_PROJECT_VERSION: "2"
+    MARKETING_VERSION: "0.2.0"
+
+packages:
+  FilterCore:
+    path: FilterCore
+
+targets:
+  AIContentFilter:
+    type: application
+    platform: macOS
+    sources:
+      - App
+      # Bundle only what scoring needs: the compiled fp16 model + tokenizer
+      # files (~64MB). The .mlpackage sources and int8 variant stay on disk.
+      - path: Models/AITextClassifier.mlmodelc
+        buildPhase: resources
+        type: folder
+      - path: Models/vocab.txt
+        buildPhase: resources
+      - path: Models/model-info.json
+        buildPhase: resources
+
+      # Stage-2 cascade model (optional): desklib DeBERTa-v3-large (~830MB
+      # fp16), produced by scripts/convert-stage2-desklib.py. Bundles as
+      # Resources/Stage2/ where loadStage2 looks first. Contains ONLY the
+      # compiled .mlmodelc + spm-vocab.json + model-info.json (+ tokenizer
+      # test vectors); the .mlpackage intermediates live in Models/
+      # Stage2-build, which is deliberately not referenced.
+      - path: Models/Stage2
+        buildPhase: resources
+        type: folder
+        optional: true
+      # Built-in pets ride in as a folder reference → Resources/Pets/, which is
+      # exactly where PetRegistry's convenience init looks (resourceURL/Pets).
+      # Raw per-frame inspection copies live in Assets/PetPreviews and are NOT
+      # bundled — only the four pet JSONs are here.
+      - path: Assets/Pets
+        buildPhase: resources
+        type: folder
+    dependencies:
+      - package: FilterCore
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: AI Detector
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSUIElement: true                       # menu bar only: no Dock icon
+        LSApplicationCategoryType: public.app-category.utilities
+        NSHumanReadableCopyright: Runs entirely on-device. No network access.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.aicf.AIContentFilter
+        ENABLE_HARDENED_RUNTIME: true
