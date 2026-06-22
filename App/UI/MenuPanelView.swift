@@ -523,19 +523,24 @@ private struct LicenseSection: View {
         case .owner, .licensed:
             EmptyView()
         case .trial(let days):
-            HStack(spacing: 8) {
-                Image(systemName: "clock.badge.checkmark").foregroundStyle(.secondary)
-                Text("Trial, \(days) day\(days == 1 ? "" : "s") left").font(.caption)
-                Spacer()
-                Button("Buy") { manager.openPurchase() }.controlSize(.small)
-                Button("Enter Key") { showEntry = true }.controlSize(.small)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Image(systemName: "clock.badge.checkmark").foregroundStyle(.secondary)
+                    Text("Always-on detection · free for \(days) more day\(days == 1 ? "" : "s")")
+                        .font(.caption)
+                    Spacer()
+                    Button("Buy") { manager.openPurchase() }.controlSize(.small)
+                    Button("Enter Key") { showEntry = true }.controlSize(.small)
+                }
+                Text("A paid feature once the trial ends. Pasting into Check Text stays free.")
+                    .font(.caption2).foregroundStyle(.secondary)
             }
             .popover(isPresented: $showEntry) { entryForm }
         case .expired:
             VStack(alignment: .leading, spacing: 6) {
-                Label("Trial ended", systemImage: "lock.fill")
+                Label("Always-on detection is paid", systemImage: "lock.fill")
                     .font(.callout.weight(.medium)).foregroundStyle(.orange)
-                Text("Buy Veritas to resume always-on detection. The manual Check Text tool stays free.")
+                Text("Your trial has ended. Buy Veritas to resume watching as you read. Pasting into Check Text stays free.")
                     .font(.caption2).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack {
