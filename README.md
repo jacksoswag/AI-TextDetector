@@ -55,7 +55,9 @@ wrong accusation is worse than a missed one.
 **Coverage and control**
 - Works across browsers and native apps via the Accessibility API.
 - OCR fallback (ScreenCaptureKit + Vision) for canvas surfaces.
-- A Domain Trust List to skip sites you trust entirely.
+- A Trusted Sites list to skip domains you trust entirely.
+- A **Check Text** panel for pasting a passage and getting a verdict on demand;
+  stays free after the trial.
 - "Erase All Local Data" wipes every local setting in one click.
 
 ## Privacy
@@ -88,9 +90,10 @@ documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Pricing
 
-A 7-day free trial, then $7.99 one time, for use on your own Macs. After buying,
-paste your license key into the menu (Enter License) to unlock. Buy at
-[CHECKOUT_URL].
+A 7-day free trial of automatic watch-as-you-read detection, then $7.99 one
+time, for use on your own Macs. After buying, paste your license key into the
+menu (Enter License) to unlock. The Check Text paste panel stays free even
+after the trial ends. Buy at [CHECKOUT_URL].
 
 ## Limitations
 
