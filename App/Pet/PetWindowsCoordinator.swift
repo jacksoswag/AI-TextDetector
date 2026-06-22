@@ -19,6 +19,7 @@ final class PetWindowsCoordinator: NSObject {
 
     private var libraryController: NSWindowController?
     private var editorController: NSWindowController?
+    private var textCheckController: NSWindowController?
 
     init(registry: PetRegistry) {
         self.registry = registry
@@ -74,6 +75,28 @@ final class PetWindowsCoordinator: NSObject {
                                     size: NSSize(width: 540, height: 620),
                                     content: view)
         editorController = controller
+        controller.showWindow(nil)
+    }
+
+    // MARK: - Check Text
+
+    /// The manual check window: paste text, get a human-vs-AI verdict. Reuses the
+    /// single controller across opens like the other aux windows, and is resizable
+    /// so a long passage gets a taller editor.
+    func openTextCheck(engine: DetectionEngine) {
+        NSApp.activate(ignoringOtherApps: true)
+
+        if let controller = textCheckController {
+            controller.showWindow(nil)
+            controller.window?.makeKeyAndOrderFront(nil)
+            return
+        }
+
+        let view = TextCheckView(engine: engine, registry: registry)
+        let controller = makeWindow(title: "Check Text",
+                                    size: NSSize(width: 420, height: 460),
+                                    content: view, resizable: true)
+        textCheckController = controller
         controller.showWindow(nil)
     }
 
@@ -158,11 +181,13 @@ final class PetWindowsCoordinator: NSObject {
 
     // MARK: - Window factory
 
-    private func makeWindow(title: String, size: NSSize, content: some View) -> NSWindowController {
+    private func makeWindow(title: String, size: NSSize, content: some View,
+                            resizable: Bool = false) -> NSWindowController {
         let hosting = NSHostingController(rootView: content)
         let window = NSWindow(contentViewController: hosting)
         window.title = title
         window.styleMask = [.titled, .closable, .miniaturizable]
+        if resizable { window.styleMask.insert(.resizable) }
         window.setContentSize(size)
         window.center()
         window.isReleasedWhenClosed = false   // we keep the controller alive
