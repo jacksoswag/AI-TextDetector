@@ -395,10 +395,16 @@ def main():
         if not tok_json_path.exists():
             raise FileNotFoundError
         tok_json = json.loads(tok_json_path.read_text())
-    except (AttributeError, FileNotFoundError):
-        from huggingface_hub import hf_hub_download
-        tok_json = json.loads(
-            Path(hf_hub_download(REPO, "tokenizer.json")).read_text())
+    except (AttributeError, FileNotFoundError, TypeError):
+        # Local model dir (e.g. a fine-tune at Models/merged) has tokenizer.json
+        # right there; only hit the hub when REPO is an actual repo id.
+        local_tok = Path(REPO) / "tokenizer.json"
+        if local_tok.exists():
+            tok_json = json.loads(local_tok.read_text())
+        else:
+            from huggingface_hub import hf_hub_download
+            tok_json = json.loads(
+                Path(hf_hub_download(REPO, "tokenizer.json")).read_text())
 
     model_section = tok_json["model"]
     assert model_section["type"] == "BPE", f"Expected BPE tokenizer, got {model_section['type']}"

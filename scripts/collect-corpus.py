@@ -368,6 +368,92 @@ def generate_ai(n, topics, provider, model, key, lo, hi, delay):
     return out
 
 
+# ── HuggingFace public datasets (free, labeled, often multi-model) ───────────
+# Sampled via the datasets-server /rows API — no `datasets` dependency. Each
+# adapter maps one dataset row to (label, register, topic, text) tuples
+# (1 = AI, 0 = human). RAID is the most valuable: 11 generators x 8 domains x
+# adversarial attacks, so it directly teaches cross-generator generalization.
+
+def _raid(row):
+    g = row.get("generation")
+    if not g:
+        return []
+    return [(0 if row.get("model") == "human" else 1,
+             row.get("domain", "web"), row.get("title") or "", g)]
+
+
+def _hc3(row):
+    out, src, q = [], row.get("source", "web"), row.get("question", "")
+    for h in (row.get("human_answers") or [])[:1]:
+        if h:
+            out.append((0, src, q, h))
+    for a in (row.get("chatgpt_answers") or [])[:1]:
+        if a:
+            out.append((1, src, q, a))
+    return out
+
+
+def _pile(row):
+    t = row.get("text")
+    return [(0 if row.get("source") == "human" else 1, "web", "", t)] if t else []
+
+
+def _essays(row):
+    out = []
+    if row.get("human_text"):
+        out.append((0, "essay", row.get("instructions", ""), row["human_text"]))
+    if row.get("ai_text"):
+        out.append((1, "essay", row.get("instructions", ""), row["ai_text"]))
+    return out
+
+
+HF_PRESETS = {
+    "raid":   ("liamdugan/raid", "raid", "train", _raid),
+    "hc3":    ("Hello-SimpleAI/HC3", "all", "train", _hc3),
+    "pile":   ("artem9k/ai-text-detection-pile", "default", "train", _pile),
+    "essays": ("dmitva/human_ai_generated_text", "default", "train", _essays),
+}
+
+
+def _hf_size(ds, cfg, sp):
+    try:
+        d = _get_json(f"https://datasets-server.huggingface.co/size?dataset={urllib.parse.quote(ds)}")
+        for s in d.get("size", {}).get("splits", []):
+            if s.get("config") == cfg and s.get("split") == sp:
+                return int(s.get("num_rows", 100000))
+    except Exception:  # noqa: BLE001
+        pass
+    return 100000
+
+
+def fetch_hf(key, n, lo, hi, delay):
+    """Sample n labeled rows from a HF dataset via the datasets-server /rows API,
+    using RANDOM offsets so we get a spread of models/domains, not one block.
+    Returns 5-tuples (src, register, topic, text, label)."""
+    ds, cfg, sp, adapt = HF_PRESETS[key]
+    size = _hf_size(ds, cfg, sp)
+    out, tries = [], 0
+    while len(out) < n and tries < (n // 10 + 80):
+        tries += 1
+        off = random.randint(0, max(0, size - 100))
+        url = (f"https://datasets-server.huggingface.co/rows?dataset={urllib.parse.quote(ds)}"
+               f"&config={cfg}&split={sp}&offset={off}&length=100")
+        try:
+            d = _get_json(url)
+        except Exception as e:  # noqa: BLE001
+            print(f"  [hf:{key}] page failed: {e}", file=sys.stderr)
+            time.sleep(delay)
+            continue
+        for item in d.get("rows", []):
+            for (label, reg, topic, text) in adapt(item.get("row", {})):
+                text = trim_words(clean(text), hi)
+                if in_range(text, lo, hi):
+                    out.append((f"hf_{key}", reg, topic, text, label))
+        print(f"  [hf:{key}] {len(out)}/{n}", file=sys.stderr)
+        time.sleep(delay)
+    return out[:n]
+
+
 # ── Assembly ─────────────────────────────────────────────────────────────────
 
 def dedup(rows):
@@ -414,6 +500,9 @@ def main():
     p.add_argument("--serper-key", default=os.environ.get("SERPER_API_KEY"))
     p.add_argument("--serper-fetch-pages", action="store_true",
                    help="fetch each result page for full paragraphs (slower; needs bs4 ideally)")
+    p.add_argument("--hf", default="",
+                   help="comma list of free HuggingFace dataset presets (labeled human+AI): raid,hc3,pile,essays")
+    p.add_argument("--hf-n", type=int, default=400, help="rows to sample PER --hf preset")
     p.add_argument("--ai", type=int, default=0, help="how many AI passages to generate")
     p.add_argument("--no-ai", action="store_true", help="skip AI generation entirely")
     p.add_argument("--ai-provider", choices=["anthropic", "openai"], default="anthropic")
@@ -450,11 +539,20 @@ def main():
         else:
             human += fetch_serper(args.serper, queries, args.serper_key, lo, hi,
                                   delay, args.serper_fetch_pages)
-    human = dedup(human)
-    print(f"HUMAN total: {len(human)}", file=sys.stderr)
-
     ai = []
-    want_ai = 0 if args.no_ai else (args.ai or len(human))
+    if args.hf:
+        for key in [k.strip() for k in args.hf.split(",") if k.strip()]:
+            if key not in HF_PRESETS:
+                print(f"  [hf] unknown preset '{key}' (have {list(HF_PRESETS)})", file=sys.stderr)
+                continue
+            for (src, reg, topic, text, label) in fetch_hf(key, args.hf_n, lo, hi, delay):
+                (human if label == 0 else ai).append((src, reg, topic, text))
+
+    human = dedup(human)
+    ai = dedup(ai)
+    print(f"HUMAN total: {len(human)} | AI from datasets: {len(ai)}", file=sys.stderr)
+
+    want_ai = 0 if args.no_ai else (args.ai or max(0, len(human) - len(ai)))
     if want_ai and not args.no_ai:
         key = args.ai_key or os.environ.get(
             "ANTHROPIC_API_KEY" if args.ai_provider == "anthropic" else "OPENAI_API_KEY")
@@ -465,8 +563,8 @@ def main():
             print(f"generating {want_ai} AI passages via {args.ai_provider}/{args.ai_model}…",
                   file=sys.stderr)
             topics = [(topic, reg) for (_s, reg, topic, _t) in human if topic] or None
-            ai = dedup(generate_ai(want_ai, topics, args.ai_provider, args.ai_model,
-                                   key, lo, hi, delay))
+            ai = dedup(ai + generate_ai(want_ai, topics, args.ai_provider, args.ai_model,
+                                        key, lo, hi, delay))
 
     if args.balance:
         human, ai = balance(human, ai)

@@ -36,7 +36,7 @@ Models/merged-new/
 # Corpus-build scratch cache (Project Gutenberg downloads)
 .cache/
 
-# ── Superseded / experimental corpora (active: data/corpus + data/corpus_v3) ──
+# ── Superseded / experimental corpora (active: data/corpus) ──
 data/corpus_big/
 data/corpus_v2/
 data/corpus_v2_sample/

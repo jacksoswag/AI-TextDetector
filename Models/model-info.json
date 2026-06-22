@@ -1,16 +1,11 @@
 {
-  "source_repo": "MayZhou/e5-small-lora-ai-generated-detector",
+  "source_repo": "MayZhou/e5-small-lora-ai-generated-detector (fine-tuned on a deconfounded matched-pair corpus)",
   "license": "mit",
   "architecture": "bert (e5-small, BERT encoder, 12 layers, hidden 384)",
   "param_count_estimate": 33360770,
   "seq_len": 256,
   "ai_label_index": 1,
   "num_labels": 2,
-  "calibration": {
-    "temperature": 0.9758,
-    "bias": -0.7926
-  },
-  "calibration_note": "Platt scaling fit by scripts/calibrate.py on data/corpus/calib.csv (293 human formal/academic from Wikipedia+arXiv, 293 Haiku-generated AI, 2026-06-15). The negative bias pulls the operating point down to a precision-first FPR ~0.7% (the small model overlaps formal-human and AI heavily in the 0.40-0.93 band). Re-fit on your own labeled text + multi-model AI to sharpen; see scripts/collect-corpus.py.",
   "do_lower_case": true,
   "special_token_ids": {
     "cls": {
@@ -34,46 +29,50 @@
   "model_max_length_note": "tokenizer_config.json has the unset sentinel (1e30); effective limit is max_position_embeddings=512, this export uses fixed seq_len=256",
   "fp16_size_mb": 63.77,
   "int8_size_mb": 32.21,
-  "parity_max_abs_diff_fp16": 0.001601,
-  "parity_max_abs_diff_int8": 0.07411,
+  "parity_max_abs_diff_fp16": 0.001278,
+  "parity_max_abs_diff_int8": 0.067935,
   "latency_ms_fp16": {
-    "median": 12.78,
-    "p90": 16.89
+    "median": 3.43,
+    "p90": 3.47
   },
   "latency_ms_int8": {
-    "median": 9.08,
-    "p90": 11.36
+    "median": 3.43,
+    "p90": 3.51
   },
   "sample_scores": [
     {
       "text_kind": "ai",
-      "pytorch_prob_ai": 0.959375,
-      "coreml_prob_ai": 0.958984
+      "pytorch_prob_ai": 0.997451,
+      "coreml_prob_ai": 0.99707
     },
     {
       "text_kind": "ai",
-      "pytorch_prob_ai": 0.959962,
-      "coreml_prob_ai": 0.959473
+      "pytorch_prob_ai": 0.997391,
+      "coreml_prob_ai": 0.99707
     },
     {
       "text_kind": "ai",
-      "pytorch_prob_ai": 0.953289,
-      "coreml_prob_ai": 0.952637
+      "pytorch_prob_ai": 0.997396,
+      "coreml_prob_ai": 0.99707
     },
     {
       "text_kind": "human",
-      "pytorch_prob_ai": 0.345595,
-      "coreml_prob_ai": 0.343994
+      "pytorch_prob_ai": 0.127506,
+      "coreml_prob_ai": 0.128784
     },
     {
       "text_kind": "human",
-      "pytorch_prob_ai": 0.217701,
-      "coreml_prob_ai": 0.218994
+      "pytorch_prob_ai": 0.973328,
+      "coreml_prob_ai": 0.974121
     },
     {
       "text_kind": "human",
-      "pytorch_prob_ai": 0.295105,
-      "coreml_prob_ai": 0.29541
+      "pytorch_prob_ai": 0.983856,
+      "coreml_prob_ai": 0.983887
     }
-  ]
+  ],
+  "calibration": {
+    "temperature": 1.1847,
+    "bias": -1.2744
+  }
 }

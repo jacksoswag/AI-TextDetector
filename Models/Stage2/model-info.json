@@ -1,5 +1,5 @@
 {
-  "source_repo": "Donnyed/LLM_Detector_Preview_model",
+  "source_repo": "Donnyed/LLM_Detector_Preview_model (fine-tuned on a deconfounded matched-pair corpus)",
   "license": "apache-2.0",
   "architecture": "modernbert + sequence classification head",
   "param_count_estimate": 395834371,
@@ -8,7 +8,7 @@
   "num_labels": 2,
   "do_lower_case": false,
   "compute_units": "cpu_and_ne",
-  "compute_units_note": "ModernBERT RoPE+SDPA runs FP16 on the Neural Engine; CPU_AND_NE (144ms/window) beats ALL (186ms, splits to GPU) and pure GPU (558ms).",
+  "compute_units_note": "ModernBERT uses RoPE + standard SDPA \u2014 runs in FP16 on ANE/GPU unlike DeBERTa whose disentangled attention produces NaN in FP16 on Apple Silicon. compute_units=all unless FP16 parity fails.",
   "tokenizer": {
     "type": "bpe",
     "vocab_file": "bpe-vocab.json"
@@ -34,41 +34,41 @@
   "package_size_mb": 755.88,
   "precision": "fp16",
   "compiled_size_mb": 757.24,
-  "parity_max_abs_diff": 0.007154,
+  "parity_max_abs_diff": 0.000907,
   "latency_ms": {
-    "median": 144.0,
-    "p90": 170.0
+    "median": 69.47,
+    "p90": 70.59
   },
   "sample_scores": [
     {
       "text_kind": "ai",
-      "pytorch_prob_ai": 0.98829,
-      "coreml_prob_ai": 0.987793
+      "pytorch_prob_ai": 1.0,
+      "coreml_prob_ai": 1.0
     },
     {
       "text_kind": "ai",
-      "pytorch_prob_ai": 0.998251,
-      "coreml_prob_ai": 0.998047
+      "pytorch_prob_ai": 1.0,
+      "coreml_prob_ai": 1.0
     },
     {
       "text_kind": "ai",
-      "pytorch_prob_ai": 0.998486,
-      "coreml_prob_ai": 0.998535
+      "pytorch_prob_ai": 1.0,
+      "coreml_prob_ai": 1.0
     },
     {
       "text_kind": "human",
-      "pytorch_prob_ai": 0.100897,
-      "coreml_prob_ai": 0.098633
+      "pytorch_prob_ai": 0.979911,
+      "coreml_prob_ai": 0.979004
     },
     {
       "text_kind": "human",
-      "pytorch_prob_ai": 0.21306,
-      "coreml_prob_ai": 0.220215
+      "pytorch_prob_ai": 0.998977,
+      "coreml_prob_ai": 0.999023
     },
     {
       "text_kind": "human",
-      "pytorch_prob_ai": 0.295433,
-      "coreml_prob_ai": 0.291992
+      "pytorch_prob_ai": 0.999932,
+      "coreml_prob_ai": 1.0
     }
   ],
   "role": "stage2 cascade model \u2014 escalation target for the 0.40\u20130.93 uncertain band"

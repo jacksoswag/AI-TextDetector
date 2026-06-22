@@ -47,7 +47,7 @@ from torch.utils.data import DataLoader, Dataset
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 try:
-    from peft import LoraConfig, get_peft_model
+    from peft import LoraConfig, get_peft_model, PeftModel
 except ImportError:
     sys.exit("peft is required: pip install peft")
 
@@ -134,6 +134,10 @@ def main():
                    help="if no --eval, carve this fraction of --train for eval")
     p.add_argument("--max-steps", type=int, default=0, help="debug: stop early")
     p.add_argument("--skip-save", action="store_true", help="debug: skip LoRA merge + save")
+    p.add_argument("--save-steps", type=int, default=200,
+                   help="checkpoint the LoRA adapter every N steps (crash recovery); 0 disables")
+    p.add_argument("--resume-from", default=None,
+                   help="resume training from a saved adapter checkpoint dir (e.g. out/stage2-ft/ckpt)")
     p.add_argument("--seed", type=int, default=42)
     args = p.parse_args()
 
@@ -161,15 +165,26 @@ def main():
         convert_script = "scripts/convert-model.py"
     print(f"base model_type={model_type or '?'}  LoRA targets={target_modules}")
 
-    lora = LoraConfig(
-        r=args.lora_r, lora_alpha=2 * args.lora_r, lora_dropout=0.05,
-        target_modules=target_modules,
-        modules_to_save=modules_to_save,
-        task_type="SEQ_CLS",
-    )
-    model = get_peft_model(model, lora)
+    if args.resume_from:
+        print(f"resuming LoRA adapter from {args.resume_from}")
+        model = PeftModel.from_pretrained(model, args.resume_from, is_trainable=True)
+    else:
+        lora = LoraConfig(
+            r=args.lora_r, lora_alpha=2 * args.lora_r, lora_dropout=0.05,
+            target_modules=target_modules,
+            modules_to_save=modules_to_save,
+            task_type="SEQ_CLS",
+        )
+        model = get_peft_model(model, lora)
     model.print_trainable_parameters()
     model.to(dev)
+
+    def save_ckpt(tag):
+        ckpt = Path(args.out) / "ckpt"
+        ckpt.mkdir(parents=True, exist_ok=True)
+        model.save_pretrained(ckpt)
+        tokenizer.save_pretrained(ckpt)
+        print(f"  ↳ checkpoint ({tag}) → {ckpt}  (resume with --resume-from {ckpt})", flush=True)
 
     full = CSVTextDataset(args.train, tokenizer, args.seq)
     if args.eval:
@@ -210,14 +225,18 @@ def main():
             scheduler.step()
             step += 1
             if step % 50 == 0 or step == total_steps:
-                print(f"epoch {epoch + 1} step {step}/{total_steps} loss {loss.item():.4f}")
+                print(f"epoch {epoch + 1} step {step}/{total_steps} loss {loss.item():.4f}", flush=True)
+            if args.save_steps and step % args.save_steps == 0:
+                save_ckpt(f"step {step}")
             if args.max_steps and step >= args.max_steps:
                 break
         if args.max_steps and step >= args.max_steps:
             break
+        if args.save_steps:
+            save_ckpt(f"end of epoch {epoch + 1}")
         if eval_loader:
             acc, fpr, recall = evaluate(model, eval_loader, dev, ai_index)
-            print(f"epoch {epoch + 1}: eval acc {acc:.4f}  FPR@0.5 {fpr:.4f}  recall {recall:.4f}")
+            print(f"epoch {epoch + 1}: eval acc {acc:.4f}  FPR@0.5 {fpr:.4f}  recall {recall:.4f}", flush=True)
 
     if args.skip_save:
         print("--skip-save: training wiring verified, not merging/saving.")
