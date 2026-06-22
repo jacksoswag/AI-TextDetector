@@ -56,7 +56,7 @@ data/corpus/full.csv
 
 # ── Build / test capture logs (scratch) ─────────────────────────────
 *.log
-build_errors_*.txt
+build_errors*.txt
 build_log.txt
 test_errors.txt
 

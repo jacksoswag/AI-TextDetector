@@ -905,10 +905,10 @@ def write_previews() -> None:
             for col, pose in enumerate(poses):
                 frame = upscale(compose(spec["render"], pose))
                 sheet.paste(frame, (col * OUT, row * OUT), frame)
-                # Faux pole at each cell's right edge — where the live mascot
+                # Faux pole at each cell's right edge — where the live pet
                 # panel meets the bracket bar — so the grips can be eyeballed
                 # against the thing they're supposed to be clinging to. Drawn
-                # ON TOP, matching the floating mascot sitting above the bar.
+                # ON TOP, matching the floating pet sitting above the bar.
                 bx = col * OUT + OUT - SCALE * 2
                 draw.rectangle((bx, row * OUT, bx + SCALE - 1, row * OUT + OUT - 1),
                                fill=(240, 196, 96, 235))
