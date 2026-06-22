@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 r"""
 build-register-humans.py — harvest the common modern HUMAN registers the corpus was
-missing, so the detector stops reading them as AI. The v3 model false-flagged Wikipedia
+missing, so the detector stops reading them as AI. An earlier model false-flagged Wikipedia
 (0.99 AI) because encyclopedic prose was never a HUMAN training example while the AI
 class contained encyclopedic-style rewrites: it learned "neutral dense factual = AI".
 This pulls clean, pre-AI human text in the registers real users actually paste:

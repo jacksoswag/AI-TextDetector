@@ -1,5 +1,5 @@
 {
-  "source_repo": "Donnyed/LLM_Detector_Preview_model (fine-tuned on a deconfounded matched-pair corpus)",
+  "source_repo": "ModernBERT-large Stage-2 cascade detector, fine-tuned on a deconfounded matched-pair corpus",
   "license": "apache-2.0",
   "architecture": "modernbert + sequence classification head",
   "param_count_estimate": 395834371,
@@ -34,10 +34,10 @@
   "package_size_mb": 755.88,
   "precision": "fp16",
   "compiled_size_mb": 757.24,
-  "parity_max_abs_diff": 0.000907,
+  "parity_max_abs_diff": 0.000107,
   "latency_ms": {
-    "median": 69.47,
-    "p90": 70.59
+    "median": 69.49,
+    "p90": 69.92
   },
   "sample_scores": [
     {
@@ -57,17 +57,17 @@
     },
     {
       "text_kind": "human",
-      "pytorch_prob_ai": 0.979911,
-      "coreml_prob_ai": 0.979004
+      "pytorch_prob_ai": 0.999454,
+      "coreml_prob_ai": 0.999512
     },
     {
       "text_kind": "human",
-      "pytorch_prob_ai": 0.998977,
-      "coreml_prob_ai": 0.999023
+      "pytorch_prob_ai": 0.999893,
+      "coreml_prob_ai": 1.0
     },
     {
       "text_kind": "human",
-      "pytorch_prob_ai": 0.999932,
+      "pytorch_prob_ai": 0.999949,
       "coreml_prob_ai": 1.0
     }
   ],
