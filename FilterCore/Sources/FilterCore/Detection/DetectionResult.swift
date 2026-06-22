@@ -87,6 +87,9 @@ public enum SkipReason: String, Sendable, Codable {
     /// Stage-1 classifier failed to load; the block could not be scored.
     /// The pipeline fails fast here instead of escalating to Stage-2.
     case modelUnavailable
+    /// The trial ended and no license is active, so the always-on overlay is
+    /// paused. The manual Check Text window stays available.
+    case unlicensed
 }
 
 public struct BlockVerdict: Sendable {

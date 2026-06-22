@@ -19,11 +19,15 @@ if ! security find-identity -v -p codesigning | grep -q "$IDENTITY"; then
   exit 1
 fi
 
-echo "Building (Release)…"
+echo "Building (Release, owner build — licensing bypassed)…"
 xcodegen generate >/dev/null
+# OWNER_BUILD flips LicenseManager.ownerOverride on, so a local install never
+# hits the trial or the license gate. The distribution build (scripts/release.sh)
+# omits it and enforces licensing.
 xcodebuild -project AIContentFilter.xcodeproj -scheme AIContentFilter \
   -configuration Release -destination 'platform=macOS' \
-  -derivedDataPath .build/DerivedData build >/dev/null
+  -derivedDataPath .build/DerivedData \
+  SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) OWNER_BUILD' build >/dev/null
 
 echo "Installing to $APP…"
 pkill -x Veritas 2>/dev/null || true

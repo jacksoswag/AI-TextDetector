@@ -23,7 +23,16 @@ final class MenuBarManager: ObservableObject {
     let settings = SettingsManager()
     let trust = DomainTrustManager()
     let stats = StatisticsManager()
-    lazy var engine = DetectionEngine()
+    // An owner build (OWNER_BUILD, set by scripts/install.sh) flips the override
+    // before LicenseManager.shared is first touched, so the owner's own builds
+    // are always fully unlocked. The public release build never sets it.
+    let license: LicenseManager = {
+        #if OWNER_BUILD
+        LicenseManager.ownerOverride = true
+        #endif
+        return .shared
+    }()
+    lazy var engine = DetectionEngine(licenseGate: { LicenseManager.isCurrentlyActive() })
 
     // Pipeline.
     let acquisition = TextAcquisitionService()
@@ -215,22 +224,18 @@ final class MenuBarManager: ObservableObject {
             }
             .store(in: &cancellables)
 
-        // One master switch controls everything, including every mascot.
+        // One master switch controls everything, including every mascot. The
+        // license gate is folded in via applyRunState: detection runs only while
+        // enabled AND the trial/license is active, so an expired trial pauses
+        // scanning the same way switching the master off does.
         settings.$isEnabled
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] enabled in
-                guard let self else { return }
-                if enabled {
-                    self.acquisition.start()
-                    self.overlays.startCulling()
-                } else {
-                    self.acquisition.stop()
-                    self.overlays.stopCulling()
-                    self.overlays.clearAll()
-                    self.mascots.removeAll()
-                    self.statusMessage = nil
-                }
-            }
+            .sink { [weak self] _ in self?.applyRunState() }
+            .store(in: &cancellables)
+
+        license.$status
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.applyRunState() }
             .store(in: &cancellables)
 
         // Re-skin live mascots the instant the active selection changes.
@@ -243,6 +248,21 @@ final class MenuBarManager: ObservableObject {
             .store(in: &cancellables)
 
         needsAccessibility = !AX.isTrusted
+    }
+
+    /// Detection runs only while the master switch is on AND the license/trial
+    /// is active. Re-applied whenever either changes.
+    private func applyRunState() {
+        if settings.isEnabled && license.isActive {
+            acquisition.start()
+            overlays.startCulling()
+        } else {
+            acquisition.stop()
+            overlays.stopCulling()
+            overlays.clearAll()
+            mascots.removeAll()
+            statusMessage = nil
+        }
     }
 
     // MARK: - Acquisition → engine → highlights + mascots
@@ -580,7 +600,27 @@ final class MenuBarManager: ObservableObject {
         }
     }
 
+    /// Open the manual check window (paste text → human-vs-AI verdict). The
+    /// engine lives here, so the coordinator borrows it for the window's view.
+    func openTextCheck() {
+        petWindows.openTextCheck(engine: engine)
+    }
+
     func quit() {
         NSApp.terminate(nil)
+    }
+
+    // MARK: - Licensing / web
+
+    @discardableResult
+    func activateLicense(_ key: String) -> Bool { license.activate(key) }
+
+    func openPurchase() { open(Brand.purchaseURL) }
+    func openWebsite() { open(Brand.siteURL) }
+    func openPrivacyPage() { open(Brand.privacyURL) }
+    func openTermsPage() { open(Brand.termsURL) }
+
+    private func open(_ urlString: String) {
+        if let url = URL(string: urlString) { NSWorkspace.shared.open(url) }
     }
 }

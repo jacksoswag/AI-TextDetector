@@ -14,7 +14,7 @@ struct AIContentFilterApp: App {
                 .environmentObject(manager)
         } label: {
             SlashedIcon(systemName: "text.viewfinder", isSlashed: !manager.settings.isEnabled)
-                .accessibilityLabel("AI Detector")
+                .accessibilityLabel("Veritas")
         }
         .menuBarExtraStyle(.window)
     }

@@ -4,7 +4,12 @@ public final class DetectionEngine: @unchecked Sendable {
     
     private let classifierProvider: @Sendable () -> PrimaryClassifier?
     private let stage2Provider: @Sendable () -> PrimaryClassifier?
-    
+    /// Gate for the always-on overlay path: when it returns false (trial ended,
+    /// no license) every block comes back `.unlicensed` and nothing is scored.
+    /// Defaults to always-on, so tests, benchmarks, and the manual check window
+    /// are unaffected. The app passes `{ LicenseManager.isCurrentlyActive() }`.
+    private let licenseGate: @Sendable () -> Bool
+
     private let calibration: CalibrationEngine
     private let temporalStabilizer: TemporalStabilizer
     private let eventLog: SemanticEventLog
@@ -36,10 +41,12 @@ public final class DetectionEngine: @unchecked Sendable {
         stage2Provider: @escaping @Sendable () -> PrimaryClassifier? = { CoreMLClassifier.loadStage2() },
         defaults: UserDefaults = .appGroup,
         trust: DomainTrustManager? = nil,
-        router: DomainRouter? = nil
+        router: DomainRouter? = nil,
+        licenseGate: @escaping @Sendable () -> Bool = { true }
     ) {
         self.classifierProvider = classifierProvider
         self.stage2Provider = stage2Provider
+        self.licenseGate = licenseGate
         self.defaults = defaults
         self.trust = trust ?? DomainTrustManager(defaults: defaults)
         self.router = router ?? DomainRouter()
@@ -73,6 +80,34 @@ public final class DetectionEngine: @unchecked Sendable {
         if let s2 = getStage2() { _ = try? await s2.score(texts: ["warm up the model"]) }
     }
 
+    /// Score one piece of pasted text for the manual check window and return the
+    /// calibrated AI probability (0...1), or nil if no model could be loaded.
+    ///
+    /// Unlike `evaluate`, this surface is deliberately UNGATED: it ignores the
+    /// master enable switch, the word-count floor, trusted domains, and the
+    /// confidence/"unknown" gate. Those gates exist to keep the always-on overlay
+    /// quiet and false-positive-averse; the check window is the opposite contract
+    /// — the user pasted text and asked for a verdict, so one is always returned.
+    public func analyze(text: String) async -> Double? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let stage1 = getStage1(),
+              let s1 = (try? await stage1.score(texts: [trimmed]))?.first else { return nil }
+
+        var pBase = s1.aiProbability
+        // Escalate the ambiguous middle to Stage-2, mirroring evaluate()'s gate
+        // (the small Stage-1 model reads formal human prose as AI across this
+        // band) but without its word floor — a one-off check uses the best model
+        // available regardless of length.
+        let ambiguous = pBase >= 0.40 && pBase <= 0.93
+        if (ambiguous || s1.uncertainty >= 0.50), let stage2 = getStage2(),
+           let s2 = (try? await stage2.score(texts: [trimmed]))?.first {
+            pBase = s2.aiProbability
+        }
+
+        let route = router.route(text: trimmed, webDomain: nil)
+        return calibration.calibrate(pBase: pBase, domain: route.domain.rawValue)
+    }
+
     /// When `deferStage2` is true the slow Stage-2 model is NOT run here.
     /// Blocks the gate would escalate come back as Stage-1 verdicts flagged
     /// `needsRefinement`, and the caller asks `refine(...)` for them off the
@@ -95,7 +130,10 @@ public final class DetectionEngine: @unchecked Sendable {
         if PersonalSurfaces.isPersonalSurface(domain) {
             return blocks.map { BlockVerdict(id: $0.id, result: .insufficientData, shouldHighlight: false, skipReason: .personalSurface) }
         }
-        
+        guard licenseGate() else {
+            return blocks.map { BlockVerdict(id: $0.id, result: .insufficientData, shouldHighlight: false, skipReason: .unlicensed) }
+        }
+
         let stage1 = getStage1()
 
         // One slot per input block, in order. Each slot is either a finished

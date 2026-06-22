@@ -1,6 +1,7 @@
 # ── Secrets (NEVER commit) ──────────────────────────────────────────
 .env
 .env.*
+.secrets/            # license signing private key (mints all license keys)
 *.pem
 *.key
 *.p12

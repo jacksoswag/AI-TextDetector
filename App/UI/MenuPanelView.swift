@@ -27,6 +27,8 @@ struct MenuPanelView: View {
                 )
             }
 
+            LicenseSection(license: manager.license, manager: manager)
+
             ThresholdSection(settings: manager.settings)
             Divider()
 
@@ -55,11 +57,23 @@ struct MenuPanelView: View {
                 }
                 .buttonStyle(.plain)
                 .keyboardShortcut("q")
-                
+
                 Spacer()
-                
+
+                Button {
+                    manager.openTextCheck()
+                } label: {
+                    Label("Check Text", systemImage: "text.magnifyingglass")
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+
                 DebugToggleView(isOn: $manager.debugMode)
             }
+
+            Divider()
+            AboutFooter(manager: manager)
         }
         .padding(14)
         .frame(width: 330)
@@ -132,7 +146,7 @@ private struct HeaderSection: View {
             SlashedIcon(systemName: "text.viewfinder", isSlashed: !settings.isEnabled)
                 .font(.title3)
                 .foregroundStyle(settings.isEnabled ? Color.primary : Color.secondary)
-            Text("AI Detector").font(.headline)
+            Text("Veritas").font(.headline)
             
             Toggle("", isOn: $settings.isEnabled)
                 .labelsHidden()
@@ -490,6 +504,92 @@ private struct PrivacyContent: View {
             }
         }
         .padding(.top, 6)
+    }
+}
+
+// MARK: - License + About
+
+/// Trial countdown / buy / enter-license. Shows nothing for owner or licensed
+/// builds, so a paying user sees a clean panel.
+private struct LicenseSection: View {
+    @ObservedObject var license: LicenseManager
+    let manager: MenuBarManager
+    @State private var showEntry = false
+    @State private var keyText = ""
+    @State private var failed = false
+
+    var body: some View {
+        switch license.status {
+        case .owner, .licensed:
+            EmptyView()
+        case .trial(let days):
+            HStack(spacing: 8) {
+                Image(systemName: "clock.badge.checkmark").foregroundStyle(.secondary)
+                Text("Trial — \(days) day\(days == 1 ? "" : "s") left").font(.caption)
+                Spacer()
+                Button("Buy") { manager.openPurchase() }.controlSize(.small)
+                Button("Enter Key") { showEntry = true }.controlSize(.small)
+            }
+            .popover(isPresented: $showEntry) { entryForm }
+        case .expired:
+            VStack(alignment: .leading, spacing: 6) {
+                Label("Trial ended", systemImage: "lock.fill")
+                    .font(.callout.weight(.medium)).foregroundStyle(.orange)
+                Text("Buy Veritas to resume always-on detection. The manual Check Text tool stays free.")
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Button("Buy Veritas") { manager.openPurchase() }
+                        .controlSize(.small).buttonStyle(.borderedProminent)
+                    Button("Enter License") { showEntry = true }.controlSize(.small)
+                }
+            }
+            .padding(8)
+            .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+            .popover(isPresented: $showEntry) { entryForm }
+        }
+    }
+
+    private var entryForm: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Enter your license key").font(.callout.weight(.medium))
+            TextField("Paste license key", text: $keyText, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(2...4)
+                .frame(width: 280)
+            if failed {
+                Text("That key isn't valid.").font(.caption2).foregroundStyle(.red)
+            }
+            HStack {
+                Spacer()
+                Button("Activate") {
+                    if manager.activateLicense(keyText) {
+                        showEntry = false; failed = false; keyText = ""
+                    } else { failed = true }
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(keyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(16)
+    }
+}
+
+/// Version line plus the legal links the App Store equivalent would show in an
+/// About box, kept on-device-friendly: they open the website pages.
+private struct AboutFooter: View {
+    let manager: MenuBarManager
+    private var version: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text("Veritas v\(version)").font(.caption2).foregroundStyle(.secondary)
+            Spacer()
+            Button("Privacy") { manager.openPrivacyPage() }.buttonStyle(.link).font(.caption2)
+            Button("Terms") { manager.openTermsPage() }.buttonStyle(.link).font(.caption2)
+        }
     }
 }
 
