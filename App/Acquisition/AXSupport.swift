@@ -68,6 +68,27 @@ enum AX {
     static func appElement(pid: pid_t) -> AXUIElement {
         AXUIElementCreateApplication(pid)
     }
+
+    /// The deepest UI element of `pid`'s app at a global Accessibility point
+    /// (top-left origin). Scoped to the target app, so it returns that app's own
+    /// content and never our overlay panels (a different process's windows are
+    /// invisible to this hit-test). Used by the overlay content-presence probe to
+    /// confirm the text a highlight brackets is still rendered at its rect.
+    static func elementAt(pid: pid_t, axPoint: CGPoint) -> AXUIElement? {
+        var out: AXUIElement?
+        guard AXUIElementCopyElementAtPosition(appElement(pid: pid),
+                                               Float(axPoint.x), Float(axPoint.y),
+                                               &out) == .success else { return nil }
+        return out
+    }
+
+    /// Best-effort readable text of an element: its value, else its title, else
+    /// its description. nil when the element exposes none of them.
+    static func valueText(_ element: AXUIElement) -> String? {
+        string(element, kAXValueAttribute as String)
+            ?? string(element, kAXTitleAttribute as String)
+            ?? string(element, kAXDescriptionAttribute as String)
+    }
 }
 
 extension NSScreen {

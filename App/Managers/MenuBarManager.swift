@@ -37,7 +37,6 @@ final class MenuBarManager: ObservableObject {
     // Pipeline.
     let acquisition = TextAcquisitionService()
     let overlays = OverlayManager()
-    let extensionServer = ExtensionServer()
 
     // Pet layer. The registry is the selection source of truth (the panel
     // and library bind to it); the windows coordinator owns the aux windows;
@@ -72,6 +71,9 @@ final class MenuBarManager: ObservableObject {
     private static let log = Logger(subsystem: "dev.aicf", category: "verdict")
 
     private var cancellables: Set<AnyCancellable> = []
+    /// Hourly tick that refreshes the published license status so the trial flips
+    /// to expired (pausing detection, slashing the icon) without a panel open.
+    private var licenseTimer: Timer?
     /// Text hashes already counted in statistics recently (rescans of the
     /// same window must not inflate the counters).
     private var countedHashes: [String: Date] = [:]
@@ -79,32 +81,6 @@ final class MenuBarManager: ObservableObject {
     /// Tracks the active ML inference pass. Canceled if a new scan arrives
     /// before completion to prevent stale coordinates from hitting the UI.
     private var evaluationTask: Task<Void, Never>?
-
-    /// Maps browser-extension DOM rects to screen coordinates (AXWebArea-anchored).
-    private let webAreaAnchor = WebAreaAnchor()
-    /// tab id (extension layerKey) → owning browser pid, so a CLEAR/FALLBACK that
-    /// arrives once the browser is no longer frontmost still resolves the layer.
-    private var extOwnerByTab: [String: pid_t] = [:]
-    /// The most recent extension payload, kept so it can be re-mapped to screen
-    /// space without a round-trip: to upgrade approach A → B once the AXWebArea
-    /// builds, and to reposition on a browser window move.
-    private var lastExt: ExtSnapshot?
-    private var extRemapTask: Task<Void, Never>?
-    /// Serial presentation of extension posts: the latest pending snapshot, and
-    /// whether the drain loop is active. A flood of position re-posts must never
-    /// cancel the in-flight detection (that starves the cold first inference).
-    private var extQueued: ExtSnapshot?
-    private var extDraining = false
-
-    private struct ExtSnapshot {
-        let layerKey: String
-        let pid: pid_t
-        let app: RunningApp
-        let domain: String
-        let viewport: WebAreaAnchor.Viewport
-        let texts: [String]
-        let domRects: [WebAreaAnchor.DOMRect]
-    }
 
     private init() {
         // Ensure debug mode starts off on launch
@@ -167,44 +143,19 @@ final class MenuBarManager: ObservableObject {
             }
         }
         acquisition.onWindowEvent = { [weak self] pid in
-            guard let self else { return }
-            self.overlays.windowEventOccurred(pid: pid)
-            // A browser window move/resize moves the AXWebArea but fires no DOM
-            // event, and the ext layer is cull-excluded — so re-map the last
-            // extension payload against the moved frame to reposition in place.
-            self.remapBrowserIfOwned(pid: pid)
+            self?.overlays.windowEventOccurred(pid: pid)
         }
         overlays.requestRescan = { [weak self] delay in
             self?.acquisition.requestConfirmScan(after: delay)
         }
         overlays.isScanInProgress = { [weak self] in self?.acquisition.isScanning ?? false }
 
-        extensionServer?.onEvaluateRequest = { [weak self] text, domain in
-            guard let self = self else { return nil }
-            let inputs = [BlockInput(id: TextMetrics.cacheKey(text, detectorID: "block"), text: text, leadingContext: nil)]
-            // Stage-1 only: a single JS request needs one fast number, not a
-            // ~144ms ANE Stage-2 pass. deferStage2 returns the e5 score immediately.
-            let results = await self.engine.evaluate(blocks: inputs, domain: domain, source: .browser, deferStage2: true)
-            return results.first.map { Double($0.result.p_ai_final) }
+        // Keep the published license status fresh so an expiring trial pauses
+        // detection (and slashes the menu-bar icon) even if the user never opens
+        // the panel. Day-granular, so hourly is ample.
+        licenseTimer = Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.license.recompute() }
         }
-        // The companion extension is the browser text SOURCE: it streams the
-        // active tab's visible paragraphs + viewport rects (POST /blocks), an
-        // explicit CLEAR when the tab goes away, a FALLBACK signal for canvas
-        // editors (Google Docs), and a HEARTBEAT to keep the AX-suppression gate
-        // warm on a static page.
-        extensionServer?.onBrowserBlocks = { [weak self] payload in
-            self?.handleBrowserBlocks(payload)
-        }
-        extensionServer?.onBrowserClear = { [weak self] payload in
-            self?.handleBrowserClear(payload)
-        }
-        extensionServer?.onBrowserFallback = { [weak self] payload in
-            self?.handleBrowserFallback(payload)
-        }
-        extensionServer?.onBrowserHeartbeat = { [weak self] _ in
-            self?.handleBrowserHeartbeat()
-        }
-        extensionServer?.start()
 
         // PETS ride the overlay union: one instance per flagged block,
         // appearing with its highlight and leaving with it. There is no
@@ -268,8 +219,7 @@ final class MenuBarManager: ObservableObject {
     // MARK: - Acquisition → engine → highlights + pets
 
     private func handleAcquired(_ blocks: [AcquiredBlock], from app: RunningApp,
-                                domain: String, source: TextSource,
-                                layerKeyOverride: String? = nil) {
+                                domain: String, source: TextSource) {
         guard settings.isEnabled else { return }
 
         // Highlight stability comes from the overlay's invalidate-on-event
@@ -284,11 +234,8 @@ final class MenuBarManager: ObservableObject {
         let inputs = stableBlocks.map {
             BlockInput(id: TextMetrics.cacheKey($0.text, detectorID: "block"), text: $0.text, leadingContext: nil)
         }
-        // The AX path keys layers by pid (ax:/ocr:); the extension path overrides
-        // with ext:<pid> so its anchorless blocks land in a cull-excluded layer
-        // distinct from any concurrent AX scan of the same browser.
-        let layerKey = layerKeyOverride
-            ?? (source == .ocr ? OverlayManager.ocrKey : OverlayManager.axKey(app.pid))
+        // OCR blocks share a single floating layer; all other sources key their layer by pid.
+        let layerKey = source == .ocr ? OverlayManager.ocrKey : OverlayManager.axKey(app.pid)
 
         evaluationTask?.cancel()
 
@@ -357,158 +304,6 @@ final class MenuBarManager: ObservableObject {
         }
     }
 
-    // MARK: - Browser extension source
-
-    /// The companion extension posted the active tab's visible text + viewport
-    /// rects. Snapshot it, map to screen space, and route through the SAME scoring
-    /// + overlay pipeline the AX path uses — the extension only swaps the source.
-    private func handleBrowserBlocks(_ p: ExtensionServer.BlocksPayload) {
-        guard settings.isEnabled, p.focused,
-              let front = NSWorkspace.shared.frontmostApplication,
-              let bundleID = front.bundleIdentifier,
-              acquisition.isBrowserBundle(bundleID) else { return }
-
-        let pid = front.processIdentifier
-        let tab = p.layerKey
-        let layerKey = OverlayManager.extKey(pid, tab)
-
-        acquisition.markExtensionOwned(bundleID)
-        extOwnerByTab[tab] = pid
-        // Clear any lingering AX-scan layer for this browser so the handoff from
-        // the AX path to the extension never double-paints.
-        overlays.dropLayer(OverlayManager.axKey(pid))
-
-        // A legitimately empty page (no qualifying text) clears the layer. Canvas
-        // editors and shadow/iframe pages take the /fallback path instead, so an
-        // empty payload here always means "nothing to highlight".
-        guard !p.blocks.isEmpty else {
-            overlays.dropLayer(layerKey)
-            if lastExt?.layerKey == layerKey { lastExt = nil }
-            return
-        }
-
-        let app = RunningApp(pid: pid, bundleID: bundleID, name: front.localizedName ?? bundleID)
-        let viewport = WebAreaAnchor.Viewport(
-            innerWidth: p.viewport.innerWidth, innerHeight: p.viewport.innerHeight,
-            outerWidth: p.viewport.outerWidth, outerHeight: p.viewport.outerHeight,
-            screenX: p.viewport.screenX, screenY: p.viewport.screenY)
-        let snapshot = ExtSnapshot(
-            layerKey: layerKey, pid: pid, app: app, domain: p.host, viewport: viewport,
-            texts: p.blocks.map(\.text),
-            domRects: p.blocks.map { WebAreaAnchor.DOMRect(x: $0.rect.x, y: $0.rect.y, w: $0.rect.w, h: $0.rect.h) })
-        // Process serially, run-to-completion: a flood of position re-posts (a page
-        // still settling its layout after load) must NOT cancel the cold first
-        // inference, or it never finishes and highlights stall for seconds. The
-        // queue keeps only the latest pending payload; the detection cache makes
-        // every re-post after the first essentially free.
-        enqueueExt(snapshot)
-        // One delayed re-map to upgrade the window-geometry first paint to the
-        // accurate AXWebArea path once Chromium's tree finishes building.
-        scheduleExtRemap()
-    }
-
-    /// Queue a snapshot for serial presentation. Never cancels an in-flight
-    /// detection — the latest queued snapshot is processed once the current one
-    /// finishes, so a burst of re-posts can't starve the first inference.
-    private func enqueueExt(_ snap: ExtSnapshot) {
-        lastExt = snap
-        extQueued = snap
-        guard !extDraining else { return }
-        extDraining = true
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            while let next = self.extQueued {
-                self.extQueued = nil
-                await self.presentBrowserAwaiting(next)
-            }
-            self.extDraining = false
-        }
-    }
-
-    /// Map a snapshot to screen coordinates, score Stage-1, and present — awaiting
-    /// completion so the serial drain never overlaps two detections. Stage-1 only:
-    /// the extension path favors a fast, stable first paint over Stage-2 refinement.
-    private func presentBrowserAwaiting(_ snap: ExtSnapshot) async {
-        guard settings.isEnabled else { return }
-        let mapped = webAreaAnchor.map(pid: snap.pid, viewport: snap.viewport, rects: snap.domRects)
-        guard mapped.rects.count == snap.texts.count else {
-            overlays.dropLayer(snap.layerKey)   // degenerate viewport → nothing trustworthy to paint
-            return
-        }
-        let acquired = zip(snap.texts, mapped.rects).map { text, rect in
-            AcquiredBlock(text: text, screenRect: rect, source: .accessibility, anchor: nil)
-        }
-        let inputs = acquired.map {
-            BlockInput(id: TextMetrics.cacheKey($0.text, detectorID: "block"), text: $0.text, leadingContext: nil)
-        }
-        let verdicts = await engine.evaluate(blocks: inputs, domain: snap.domain,
-                                             source: .browser, deferStage2: true)
-        let flagged = Array(zip(acquired, verdicts)).filter {
-            $0.1.skipReason == nil && Self.isFlagState($0.1.result.state) && $0.1.shouldHighlight
-        }
-        presentFlagged(flagged, layerKey: snap.layerKey, domain: snap.domain, app: snap.app)
-    }
-
-    /// One-shot upgrade from the window-geometry estimate to the AXWebArea path
-    /// once the lazily-built tree appears. Bounded; re-runs only the cheap map.
-    private func scheduleExtRemap() {
-        extRemapTask?.cancel()
-        extRemapTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 700_000_000)
-            guard !Task.isCancelled, let self, let snap = self.lastExt,
-                  let front = NSWorkspace.shared.frontmostApplication,
-                  front.processIdentifier == snap.pid else { return }
-            self.enqueueExt(snap)
-        }
-    }
-
-    /// Reposition the current extension highlights after a browser window move.
-    private func remapBrowserIfOwned(pid: pid_t) {
-        guard let snap = lastExt, snap.pid == pid else { return }
-        enqueueExt(snap)
-    }
-
-    /// The active tab went away (hidden / navigated / unloaded / closed). Drop its
-    /// highlights, resolved from the tab id in the payload (the browser may no
-    /// longer be frontmost). Ownership is NOT relinquished here — the heartbeat
-    /// TTL handles that, so a tab switch (old tab clears, new tab re-posts) does
-    /// not briefly re-expose the slow AX path.
-    private func handleBrowserClear(_ p: ExtensionServer.ClearPayload) {
-        let tab = p.layerKey
-        guard let pid = extOwnerByTab[tab] else { return }
-        let layerKey = OverlayManager.extKey(pid, tab)
-        overlays.dropLayer(layerKey)
-        extOwnerByTab[tab] = nil
-        if lastExt?.layerKey == layerKey { lastExt = nil }
-    }
-
-    /// A canvas editor (Google Docs) or a page whose text lives where the DOM walk
-    /// can't reach. Relinquish ownership so the native AX path reclaims the surface
-    /// (Chrome exposes Docs' off-screen a11y layer once nudged), and clear any
-    /// extension highlights we were showing.
-    private func handleBrowserFallback(_ p: ExtensionServer.FallbackPayload) {
-        guard let front = NSWorkspace.shared.frontmostApplication,
-              let bundleID = front.bundleIdentifier,
-              acquisition.isBrowserBundle(bundleID) else { return }
-        let pid = front.processIdentifier
-        let tab = p.layerKey
-        let layerKey = OverlayManager.extKey(pid, tab)
-        overlays.dropLayer(layerKey)
-        extOwnerByTab[tab] = nil
-        if lastExt?.layerKey == layerKey { lastExt = nil }
-        webAreaAnchor.invalidate(pid: pid)
-        acquisition.clearExtensionOwned(bundleID)
-        acquisition.requestConfirmScan(after: 0.3)   // let AX pick up the editor
-    }
-
-    /// Keep the AX-suppression gate warm for a static but covered page.
-    private func handleBrowserHeartbeat() {
-        guard let front = NSWorkspace.shared.frontmostApplication,
-              let bundleID = front.bundleIdentifier,
-              acquisition.isBrowserBundle(bundleID) else { return }
-        acquisition.markExtensionOwned(bundleID)
-    }
-
     /// Paint exactly `flagged` as the highlight set for `layerKey`, refresh the
     /// stats counters and the calm status line. Re-presents diff in place
     /// (panels are content-keyed), so phase 2 can re-present the union without
@@ -528,7 +323,8 @@ final class MenuBarManager: ObservableObject {
                     anchor: pair.0.anchor,
                     domain: domain,
                     route: domain,
-                    result: pair.1.result
+                    result: pair.1.result,
+                    text: pair.0.text
                 )
             },
             domain: domain,

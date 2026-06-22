@@ -32,22 +32,6 @@ public enum PetValidationError: Error, Equatable, Sendable, LocalizedError {
     }
 }
 
-/// The four authoring sliders that shape a pet's voice (0 = none, 1 = max).
-/// Values are stored raw rather than clamped: a hand-edited file claiming
-/// seriousness 7.0 is a mistake the author should hear about, not one we
-/// silently round away — `PetDefinition.validate()` rejects it instead.
-
-
-/// Base archetype a pet's speech is written against. A closed set on purpose:
-/// template authoring, default tone presets, and the editor's picker all
-/// assume exactly these four, so an unknown value fails decoding (and
-/// therefore import) up front instead of surfacing later as a blank picker.
-public enum PetPersonality: String, Codable, Equatable, Sendable, CaseIterable {
-    case analyst
-    case companion
-    case skeptical
-    case chaotic
-}
 
 /// Names of the animation styles the UI should play per behavior. Free-form
 /// strings rather than an enum so a pet file can reference styles added in a
@@ -105,7 +89,6 @@ public struct PetAssets: Codable, Equatable, Sendable {
 public struct PetDefinition: Codable, Equatable, Sendable, Identifiable {
     public let id: String
     public let name: String
-    public let personalityBase: PetPersonality
     /// Lines keyed by `DetectionState` raw value. A dictionary rather than a
     /// struct of five arrays because the keys ARE the contract with the
     /// detection layer — see `requiredStateKeys`.
@@ -115,7 +98,6 @@ public struct PetDefinition: Codable, Equatable, Sendable, Identifiable {
 
     private enum CodingKeys: String, CodingKey {
         case id, name, assets
-        case personalityBase = "personality_base"
         case speechTemplates = "speech_templates"
         case animationProfile = "animation_profile"
     }
@@ -127,21 +109,20 @@ public struct PetDefinition: Codable, Equatable, Sendable, Identifiable {
     /// purpose. PetCoreTests pins the two lists together.
     public static let requiredStateKeys = ["safe", "uncertain", "suspicious", "high", "very_high"]
 
-    public init(id: String, name: String, personalityBase: PetPersonality,
+    public init(id: String, name: String,
                 speechTemplates: [String: [String]], animationProfile: PetAnimationProfile,
                 assets: PetAssets) {
         self.id = id
         self.name = name
-        self.personalityBase = personalityBase
         self.speechTemplates = speechTemplates
         self.animationProfile = animationProfile
         self.assets = assets
     }
 
     /// Same pet under a new identity — the import-collision path needs to
-    /// re-key a definition without hand-copying the other six fields.
+    /// re-key a definition without hand-copying the other fields.
     public func withID(_ newID: String) -> PetDefinition {
-        PetDefinition(id: newID, name: name, personalityBase: personalityBase,
+        PetDefinition(id: newID, name: name,
                       speechTemplates: speechTemplates, animationProfile: animationProfile,
                       assets: assets)
     }

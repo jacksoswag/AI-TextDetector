@@ -1,11 +1,11 @@
 # XcodeGen project definition.
 #   brew install xcodegen && xcodegen generate
 #
-# Single Xcode target. The browser companion in Extension/ talks to the app
-# over loopback, so it is not a separate Xcode target. The app shares a
-# UserDefaults suite (group.dev.aicf.shared); the matching entitlement lives in
-# App/AIContentFilter.entitlements but is not wired into the build (the suite
-# works unsandboxed without it). Model artifacts in Models/ (produced by
+# Single Xcode target. The app is unsandboxed
+# and needs no special entitlements (Accessibility and Screen Recording are TCC
+# permissions, not entitlements), so App/AIContentFilter.entitlements is an empty
+# dict, wired via CODE_SIGN_ENTITLEMENTS below so signing is explicit and there
+# is a home for any future entitlement. Model artifacts in Models/ (produced by
 # scripts/convert-model.py) are bundled as resources.
 
 name: AIContentFilter
@@ -89,3 +89,4 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.aicf.AIContentFilter
         ENABLE_HARDENED_RUNTIME: true
+        CODE_SIGN_ENTITLEMENTS: App/AIContentFilter.entitlements

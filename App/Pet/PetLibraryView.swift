@@ -130,8 +130,6 @@ struct PetLibraryView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
 
                 Text(pet.name).font(.headline)
-                Text(pet.personalityBase.rawValue.capitalized)
-                    .font(.caption).foregroundStyle(.secondary)
 
                 Picker("", selection: $previewBehavior) {
                     ForEach(PreviewBehavior.allCases, id: \.self) { b in
@@ -185,7 +183,6 @@ struct PetLibraryView: View {
         PetDefinition(
             id: "custom-\(Self.shortHex())",
             name: "\(pet.name) Copy",
-            personalityBase: pet.personalityBase,
             speechTemplates: pet.speechTemplates,
             animationProfile: pet.animationProfile,
             assets: pet.assets
@@ -236,8 +233,6 @@ private struct PetRow: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(pet.name).font(.body)
-                Text(pet.personalityBase.rawValue.capitalized)
-                    .font(.caption2).foregroundStyle(.secondary)
             }
 
             Spacer()

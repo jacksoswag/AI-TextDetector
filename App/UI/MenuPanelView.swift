@@ -14,6 +14,10 @@ struct MenuPanelView: View {
             HeaderSection(settings: manager.settings)
 
             if manager.needsAccessibility {
+                Text("Veritas highlights AI-generated text as you read. Grant Accessibility access to let it watch your screen; nothing it reads leaves this Mac.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 PermissionSection(
                     title: "Permission needed",
                     detail: "Allow Accessibility to filter on-screen text",
@@ -54,6 +58,7 @@ struct MenuPanelView: View {
                     manager.quit()
                 } label: {
                     Label("Quit", systemImage: "power")
+                        .font(.caption)
                 }
                 .buttonStyle(.plain)
                 .keyboardShortcut("q")
@@ -80,6 +85,7 @@ struct MenuPanelView: View {
         .onAppear {
             manager.stats.reload()
             manager.refreshPermissionState()
+            manager.license.recompute()
         }
     }
 }
@@ -464,8 +470,9 @@ private struct StatisticsContent: View {
 }
 
 private struct PrivacyContent: View {
+    @EnvironmentObject private var manager: MenuBarManager
     @State private var confirmingErase = false
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(PrivacyManager.summary)
@@ -475,31 +482,36 @@ private struct PrivacyContent: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            if confirmingErase {
-                HStack {
-                    Spacer()
-                    Text("Are you sure?")
-                        .font(.caption)
+
+            HStack(spacing: 8) {
+                Button {
+                    manager.launchAtLogin.toggle()
+                } label: {
+                    Label("Launch at login",
+                          systemImage: manager.launchAtLogin ? "checkmark.square.fill" : "square")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
+                Spacer()
+
+                if confirmingErase {
+                    Text("Are you sure?").font(.caption)
                     Button("Yes") {
                         PrivacyManager.eraseAllLocalData()
                         MenuBarManager.shared.stats.reload()
                         confirmingErase = false
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.bordered)
                     .tint(.red)
                     .controlSize(.small)
                     Button("No") { confirmingErase = false }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.gray)
-                    .controlSize(.small)
-                    Spacer()
-                }
-            } else {
-                HStack {
-                    Spacer()
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                } else {
                     Button("Erase All Local Data") { confirmingErase = true }
-                    .controlSize(.small)
-                    Spacer()
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
                 }
             }
         }
@@ -516,12 +528,33 @@ private struct LicenseSection: View {
     let manager: MenuBarManager
     @State private var showEntry = false
     @State private var keyText = ""
-    @State private var failed = false
+    @State private var errorKind: KeyError?
+    @State private var justActivated = false
+
+    private enum KeyError {
+        case malformed, rejected
+        var message: String {
+            switch self {
+            case .malformed: return "That doesn't look like a license key. Paste the whole key from your purchase email."
+            case .rejected:  return "That key wasn't accepted. Check it matches your purchase email exactly."
+            }
+        }
+    }
 
     var body: some View {
         switch license.status {
-        case .owner, .licensed:
+        case .owner:
             EmptyView()
+        case .licensed(let name):
+            // Brief confirmation right after activation, then the panel goes
+            // quiet for a paying user.
+            if justActivated {
+                Label("Licensed to \(name). Thank you.", systemImage: "checkmark.seal.fill")
+                    .font(.caption).foregroundStyle(.green)
+                    .transition(.opacity)
+            } else {
+                EmptyView()
+            }
         case .trial(let days):
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
@@ -548,6 +581,8 @@ private struct LicenseSection: View {
                         .controlSize(.small).buttonStyle(.borderedProminent)
                     Button("Enter License") { showEntry = true }.controlSize(.small)
                 }
+                Text("14 days to change your mind, refunded on request.")
+                    .font(.caption2).foregroundStyle(.tertiary)
             }
             .padding(8)
             .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
@@ -562,15 +597,28 @@ private struct LicenseSection: View {
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(2...4)
                 .frame(width: 280)
-            if failed {
-                Text("That key isn't valid.").font(.caption2).foregroundStyle(.red)
+            if let errorKind {
+                Text(errorKind.message)
+                    .font(.caption2).foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(width: 280, alignment: .leading)
             }
             HStack {
                 Spacer()
                 Button("Activate") {
-                    if manager.activateLicense(keyText) {
-                        showEntry = false; failed = false; keyText = ""
-                    } else { failed = true }
+                    if !LicenseManager.looksLikeKey(keyText) {
+                        errorKind = .malformed
+                    } else if manager.activateLicense(keyText) {
+                        showEntry = false
+                        errorKind = nil
+                        keyText = ""
+                        withAnimation { justActivated = true }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                            withAnimation { justActivated = false }
+                        }
+                    } else {
+                        errorKind = .rejected
+                    }
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(keyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -592,8 +640,10 @@ private struct AboutFooter: View {
         HStack(spacing: 10) {
             Text("Veritas v\(version)").font(.caption2).foregroundStyle(.secondary)
             Spacer()
-            Button("Privacy") { manager.openPrivacyPage() }.buttonStyle(.link).font(.caption2)
-            Button("Terms") { manager.openTermsPage() }.buttonStyle(.link).font(.caption2)
+            Button("Privacy") { manager.openPrivacyPage() }
+                .buttonStyle(.plain).font(.caption2).foregroundStyle(.secondary)
+            Button("Terms") { manager.openTermsPage() }
+                .buttonStyle(.plain).font(.caption2).foregroundStyle(.secondary)
         }
     }
 }

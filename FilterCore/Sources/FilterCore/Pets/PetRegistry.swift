@@ -75,7 +75,6 @@ public final class PetRegistry: ObservableObject, @unchecked Sendable {
     public static let nonePet = PetDefinition(
         id: "none",
         name: "None",
-        personalityBase: .analyst,
         speechTemplates: [
             "safe": [
                 "Rhythm and word choice vary naturally. This reads human.",

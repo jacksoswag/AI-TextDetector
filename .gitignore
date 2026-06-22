@@ -1,7 +1,9 @@
 # ── Secrets (NEVER commit) ──────────────────────────────────────────
 .env
 .env.*
-.secrets/            # license signing private key (mints all license keys)
+# license signing private key (mints all license keys) — own line: git has no
+# inline comments, so a trailing "# ..." would make this match nothing.
+.secrets/
 *.pem
 *.key
 *.p12
@@ -15,7 +17,8 @@ README.orig.md
 AIContentFilter.xcodeproj/
 .build/
 build/
-dist/                 # scripts/release.sh output (signed/notarized DMG)
+# scripts/release.sh output (signed/notarized DMG)
+dist/
 DerivedData/
 FilterCore/.build/
 xcuserdata/
@@ -41,7 +44,10 @@ data/corpus_big/
 data/corpus_v2/
 data/corpus_v2_sample/
 data/corpus_agent/
+# register-deconfound regression sets (regeneratable)
+data/corpus_reg/
 data/corpus/full.csv
+data/corpus/eval_held.csv
 
 # ── Large model / binary artifacts (regeneratable via scripts/) ─────
 # CoreML compiled & packaged models contain multi-hundred-MB weight blobs.
@@ -62,6 +68,9 @@ test_errors.txt
 
 # ── OS junk ─────────────────────────────────────────────────────────
 .DS_Store
+
+# Internal working notes (audit / friction / lifecycle) — kept local, not public
+docs/internal/
 
 # Local-only Claude skills (per-repo tooling, not published)
 .claude/skills/

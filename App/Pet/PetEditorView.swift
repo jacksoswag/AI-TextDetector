@@ -69,16 +69,6 @@ struct PetEditorView: View {
                         .textFieldStyle(.roundedBorder)
                         .frame(maxWidth: 150)
                 }
-                HStack {
-                    Text("Personality")
-                    Picker("", selection: $draft.personality) {
-                        ForEach(PetPersonality.allCases, id: \.self) { p in
-                            Text(p.rawValue.capitalized).tag(p)
-                        }
-                    }
-                    .labelsHidden()
-                    .frame(maxWidth: 150)
-                }
             }
         }
     }
@@ -352,7 +342,6 @@ private enum GIFSlot: CaseIterable {
 private struct Draft {
     var existingID: String = ""
     var name: String = ""
-    var personality: PetPersonality = .companion
     var speech: [String: [String]] = [:]
     var gifs: [String: String] = [:]
     var basePNG: String = ""
@@ -362,7 +351,6 @@ private struct Draft {
     init(_ pet: PetDefinition) {
         existingID = pet.id
         name = pet.name
-        personality = pet.personalityBase
         speech = pet.speechTemplates
         gifs = pet.assets.gifs
         basePNG = pet.assets.basePNG
@@ -395,7 +383,6 @@ private struct Draft {
         return PetDefinition(
             id: id,
             name: name.trimmingCharacters(in: .whitespacesAndNewlines),
-            personalityBase: personality,
             speechTemplates: trimmedSpeech,
             animationProfile: PetAnimationProfile(idle: "idle", track: "track", alert: "alert"),
             assets: PetAssets(basePNG: basePNG, gifs: gifs)

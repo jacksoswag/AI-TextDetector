@@ -12,10 +12,10 @@
 #        security find-identity -v -p codesigning
 #   2. Store notary credentials in a keychain profile:
 #        xcrun notarytool store-credentials veritas-notary \
-#          --apple-id you@example.com --team-id TEAMID \
+#          --apple-id you@example.com --team-id YOUR_TEAM_ID \
 #          --password <app-specific-password>
 #   3. Run:
-#        export DEVELOPER_ID="Developer ID Application: Jackson Adams (TEAMID)"
+#        export DEVELOPER_ID="Developer ID Application: Jackson Adams (YOUR_TEAM_ID)"
 #        export NOTARY_PROFILE="veritas-notary"
 #        scripts/release.sh
 set -euo pipefail
@@ -27,6 +27,7 @@ DERIVED=".build/DerivedData"
 DIST="dist"
 APP="$DIST/$APP_NAME.app"
 ICNS="Assets/Veritas.icns"
+ENTITLEMENTS="App/AIContentFilter.entitlements"
 VERSION=$(grep -m1 'MARKETING_VERSION:' project.yml | sed -E 's/.*"([^"]+)".*/\1/')
 DMG="$DIST/${APP_NAME}-${VERSION}.dmg"
 
@@ -41,7 +42,7 @@ if [[ -z "$DEVELOPER_ID" ]]; then
 No Developer ID set. A distributable build needs a Developer ID Application
 certificate, which requires a paid Apple Developer account. To proceed:
 
-  export DEVELOPER_ID="Developer ID Application: Jackson Adams (TEAMID)"
+  export DEVELOPER_ID="Developer ID Application: Jackson Adams (YOUR_TEAM_ID)"
   export NOTARY_PROFILE="veritas-notary"   # see the header for store-credentials
   scripts/release.sh
 
@@ -64,9 +65,20 @@ xcodebuild -project AIContentFilter.xcodeproj -scheme "$SCHEME" \
 rm -rf "$DIST"; mkdir -p "$DIST"
 cp -R "$DERIVED/Build/Products/Release/$APP_NAME.app" "$APP"
 
-# --- sign (hardened runtime + secure timestamp) -----------------------------
+# --- scrub build-tool metadata from Info.plist ------------------------------
+# Drop the build machine's Xcode/SDK version stamps. Cosmetic, but no reason to
+# ship them. MUST run before signing — editing Info.plist after codesign breaks
+# the signature.
+PLIST="$APP/Contents/Info.plist"
+for k in BuildMachineOSBuild DTCompiler DTPlatformBuild DTPlatformName \
+         DTPlatformVersion DTSDKBuild DTSDKName DTXcode DTXcodeBuild; do
+  /usr/libexec/PlistBuddy -c "Delete :$k" "$PLIST" 2>/dev/null || true
+done
+
+# --- sign (hardened runtime + secure timestamp + entitlements) --------------
 note "Signing with Developer ID…"
-codesign --force --options runtime --timestamp --sign "$DEVELOPER_ID" "$APP"
+codesign --force --options runtime --timestamp \
+  --entitlements "$ENTITLEMENTS" --sign "$DEVELOPER_ID" "$APP"
 codesign --verify --strict --verbose=2 "$APP"
 
 # --- package DMG (native hdiutil; no extra deps) ----------------------------
@@ -88,10 +100,17 @@ rm -f "$RW"; rm -rf "$STAGE"
 codesign --force --sign "$DEVELOPER_ID" "$DMG"
 
 # --- notarize + staple ------------------------------------------------------
+# Notarization is REQUIRED for a shippable build: an unnotarized DMG is
+# quarantine-blocked on every customer's Mac. The only escape is an explicit
+# ALLOW_UNNOTARIZED=1 for local packaging tests — never for a release.
 : ${NOTARY_PROFILE:=""}
+: ${ALLOW_UNNOTARIZED:=""}
 if [[ -z "$NOTARY_PROFILE" ]]; then
-  warn "NOTARY_PROFILE not set — skipping notarization."
-  warn "The DMG is signed but NOT notarized; Gatekeeper will block it on other Macs."
+  if [[ "$ALLOW_UNNOTARIZED" != "1" ]]; then
+    die "NOTARY_PROFILE not set. A shippable DMG must be notarized (see the header). Set ALLOW_UNNOTARIZED=1 to build an unnotarized DMG for local testing only."
+  fi
+  warn "ALLOW_UNNOTARIZED=1 — packaging an UNNOTARIZED DMG. Gatekeeper will block"
+  warn "it on any other Mac. For local testing only; do not distribute this file."
 else
   note "Submitting to Apple notary service (a few minutes)…"
   xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait

@@ -69,7 +69,7 @@ function buildPrompt([start, end]) {
 phase('Generate')
 log(`generating ${TOTAL} AI passages across ${ranges.length} agent batches from ${FILE}`)
 const results = await parallel(
-  ranges.map(([s, e], i) => () =>
+  ranges.map(([s, e]) => () =>
     agent(buildPrompt([s, e]), { label: `gen:${s}-${e}`, phase: 'Generate', schema: SCHEMA, model: MODEL })
   )
 )

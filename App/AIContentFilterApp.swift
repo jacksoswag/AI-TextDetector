@@ -13,10 +13,24 @@ struct AIContentFilterApp: App {
             MenuPanelView()
                 .environmentObject(manager)
         } label: {
-            SlashedIcon(systemName: "text.viewfinder", isSlashed: !manager.settings.isEnabled)
-                .accessibilityLabel("Veritas")
+            MenuBarLabel(settings: manager.settings, license: manager.license)
         }
         .menuBarExtraStyle(.window)
+    }
+}
+
+/// The menu-bar glyph. Slashed whenever Veritas is not actively watching — the
+/// master switch is off, or the trial/license has lapsed — so an expired trial
+/// shows at a glance instead of detection just going quiet. Observes both nested
+/// stores directly, since a nested ObservableObject doesn't republish through the
+/// parent manager.
+private struct MenuBarLabel: View {
+    @ObservedObject var settings: SettingsManager
+    @ObservedObject var license: LicenseManager
+
+    var body: some View {
+        SlashedIcon(systemName: "text.viewfinder", isSlashed: !settings.isEnabled || !license.isActive)
+            .accessibilityLabel("Veritas")
     }
 }
 

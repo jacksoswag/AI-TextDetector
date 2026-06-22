@@ -56,16 +56,13 @@ wrong accusation is worse than a missed one.
 - Works across browsers and native apps via the Accessibility API.
 - OCR fallback (ScreenCaptureKit + Vision) for canvas surfaces.
 - A Domain Trust List to skip sites you trust entirely.
-- An optional Chrome/Chromium companion extension for faster in-browser reads.
 - "Erase All Local Data" wipes every local setting in one click.
 
 ## Privacy
 
 Veritas collects nothing and sends nothing off your Mac. Both models run locally.
 On-screen text is processed in memory and never written to disk or transmitted.
-The only network surface is an optional loopback server on `127.0.0.1:31337` for
-the browser extension; it is token-gated and never touches the internet. With the
-extension off, there is no network surface at all. Full details are in
+The app runs no local servers and opens no network ports. Full details are in
 [PRIVACY.md](PRIVACY.md).
 
 ## How it works
@@ -95,13 +92,6 @@ A 7-day free trial, then $7.99 one time, for use on your own Macs. After buying,
 paste your license key into the menu (Enter License) to unlock. Buy at
 [CHECKOUT_URL].
 
-## Browser extension
-
-The optional companion extension (Chrome and Chromium browsers, Manifest V3)
-reads the visible page text directly and hands it to the app over loopback,
-skipping the short Accessibility warm-up. It never modifies or draws on the page.
-The extension lives in [Extension/](Extension/).
-
 ## Limitations
 
 - Recall is weaker on paraphrased or heavily human-edited AI text.
@@ -115,8 +105,8 @@ The extension lives in [Extension/](Extension/).
 **Is my text sent anywhere?** No. Both models run on your Mac. Nothing is
 uploaded.
 
-**Does it work in Google Docs?** Yes, through the OCR fallback (needs Screen
-Recording) or the browser extension.
+**Does it work in Google Docs?** Yes — its accessibility layer is read directly,
+with the OCR fallback (needs Screen Recording) as a backstop.
 
 **Why didn't it flag something?** When the score is ambiguous, Veritas reports
 "unknown" and flags nothing rather than guess.

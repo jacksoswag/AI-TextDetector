@@ -36,7 +36,7 @@ public final class LicenseManager: ObservableObject {
 
     private enum Key {
         static let license = "license.key"
-        static let trialStart = "license.trialStart"
+        static let trialStart = "license.trialStart" // Legacy key — read once in ensureTrialStart to migrate upgraders; never written after migration.
     }
 
     private let defaults: UserDefaults
@@ -46,6 +46,7 @@ public final class LicenseManager: ObservableObject {
     public init(defaults: UserDefaults = .appGroup) {
         self.defaults = defaults
         Self.ensureTrialStart(defaults)
+        Self.touchTrialClock()
         status = Self.computeStatus(defaults)
     }
 
@@ -56,6 +57,10 @@ public final class LicenseManager: ObservableObject {
     /// so the owner never pays. The public release build leaves it false. It is
     /// set once before the first scan and only read thereafter.
     public static var ownerOverride = false
+
+    /// Storage seam for the trial anchor: the Keychain in production, swapped for
+    /// an in-memory store in tests so they never touch the real Keychain.
+    static var trialStore: TrialAnchorStore = KeychainTrialStore()
 
     /// Thread-safe gate for the detection engine. Reads UserDefaults directly so
     /// it is safe to call off the main actor (it never touches @Published state).
@@ -68,11 +73,24 @@ public final class LicenseManager: ObservableObject {
     /// Validate and store a license key. Returns true and unlocks on success.
     @discardableResult
     public func activate(_ key: String) -> Bool {
-        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard Self.verify(trimmed) != nil else { return false }
-        defaults.set(trimmed, forKey: Key.license)
+        let cleaned = Self.sanitize(key)
+        guard Self.verify(cleaned) != nil else { return false }
+        defaults.set(cleaned, forKey: Key.license)
         recompute()
         return true
+    }
+
+    /// Strip all whitespace: email clients wrap a long key across lines, and a
+    /// valid key (`base64url.base64url`) never contains any.
+    static func sanitize(_ key: String) -> String {
+        key.filter { !$0.isWhitespace }
+    }
+
+    /// Cheap shape check for the UI so it can tell "this isn't a key" from "this
+    /// key was rejected": two non-empty parts separated by a single dot.
+    public static func looksLikeKey(_ key: String) -> Bool {
+        let parts = sanitize(key).split(separator: ".", maxSplits: 1, omittingEmptySubsequences: false)
+        return parts.count == 2 && !parts[0].isEmpty && !parts[1].isEmpty
     }
 
     public func removeLicense() {
@@ -82,6 +100,7 @@ public final class LicenseManager: ObservableObject {
 
     /// Recompute the published status from storage. Call on the main actor.
     public func recompute() {
+        Self.touchTrialClock()
         let updated = Self.computeStatus(defaults)
         if updated != status { status = updated }
     }
@@ -100,16 +119,36 @@ public final class LicenseManager: ObservableObject {
         return verify(key)
     }
 
+    /// Seed the trial anchor once. Migrates an existing install's UserDefaults
+    /// start date into the Keychain store so upgraders keep their remaining days;
+    /// a fresh install starts the clock now.
     static func ensureTrialStart(_ defaults: UserDefaults) {
-        if defaults.object(forKey: Key.trialStart) == nil {
-            defaults.set(Date(), forKey: Key.trialStart)
-        }
+        guard trialStore.start() == nil else { return }
+        let seed = (defaults.object(forKey: Key.trialStart) as? Date) ?? Date()
+        trialStore.seedStart(seed)
+        trialStore.setLastSeen(Date())
     }
 
     static func trialDaysRemaining(_ defaults: UserDefaults) -> Int {
-        let start = (defaults.object(forKey: Key.trialStart) as? Date) ?? Date()
-        let elapsedDays = Int(Date().timeIntervalSince(start) / 86_400)
+        guard let start = trialStore.start() else { return trialDays }
+        let last = trialStore.lastSeen() ?? start
+        return remainingDays(start: start, lastSeen: last, now: Date())
+    }
+
+    /// Days left, measured from `max(now, lastSeen)` so rolling the system clock
+    /// back cannot lengthen the trial. Pure; unit-tested.
+    static func remainingDays(start: Date, lastSeen: Date, now: Date) -> Int {
+        let effectiveNow = max(now, lastSeen)
+        let elapsedDays = Int(effectiveNow.timeIntervalSince(start) / 86_400)
         return max(0, trialDays - elapsedDays)
+    }
+
+    /// Advance the monotonic high-water mark. Called at launch and ~hourly, never
+    /// on the hot gate path (a Keychain write per evaluation would be wasteful).
+    static func touchTrialClock() {
+        let now = Date()
+        let last = trialStore.lastSeen() ?? now
+        if now > last { trialStore.setLastSeen(now) }
     }
 
     /// Verify a license key against a public key. Returns the record on a valid

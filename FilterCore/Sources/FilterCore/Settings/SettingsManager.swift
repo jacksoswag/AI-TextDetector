@@ -86,9 +86,8 @@ public final class SettingsManager: ObservableObject {
         didSet { defaults.set(minWords, forKey: SettingsKey.minWords) }
     }
 
-    /// Tier 2/3 (Accessibility + OCR) scanning of native apps. Off by default:
-    /// it needs the Accessibility permission and costs more battery than the
-    /// browser-extension path.
+    /// Tier 2/3 (Accessibility + OCR) scanning of native apps. It needs the
+    /// Accessibility permission and costs battery, so it is a user-facing toggle.
     @Published public var nativeScanningEnabled: Bool {
         didSet { defaults.set(nativeScanningEnabled, forKey: SettingsKey.nativeScanning) }
     }

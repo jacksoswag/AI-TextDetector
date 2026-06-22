@@ -56,10 +56,6 @@ final class TextAcquisitionService {
     private static let maxValueAnchors = 40
     /// LRU of live AX observers, at most this many; evicting one invalidates it.
     private static let maxObservers = 4
-    /// How long a browser stays "extension-owned" after its last post/heartbeat
-    /// before the AX/OCR path reclaims it (covers chrome://, file://, the PDF
-    /// viewer, an extension crash, or a canvas editor that handed back).
-    private static let extTTL: TimeInterval = 6.0
 
     private let axSource = AccessibilityTextSource()
     private let ocrSource = OCRTextSource()
@@ -77,10 +73,6 @@ final class TextAcquisitionService {
     private var requestedScreenCapture = false
     private var isAsleep = false
     private var lastExternalApp: NSRunningApplication?
-    /// Browser bundles currently fed by the companion extension → timestamp of
-    /// the last post/heartbeat. While warm (< extTTL) `scanApp` skips the slow
-    /// AX walk + OCR fallback for that browser.
-    private var extensionOwned: [String: Date] = [:]
     private(set) var isRunning = false
     private var pendingScrollSettle = false
     /// True while a frontmost scan (the off-main AX walk) is in flight. The
@@ -187,18 +179,6 @@ final class TextAcquisitionService {
     func requestConfirmScan(after delay: TimeInterval = 1.2) {
         scheduleScan(after: delay)
     }
-
-    // MARK: - Browser extension ownership
-
-    /// The companion extension just posted text for this browser bundle. Refresh
-    /// its ownership window so the AX/OCR browser path stays suppressed.
-    func markExtensionOwned(_ bundleID: String) { extensionOwned[bundleID] = Date() }
-
-    /// The extension relinquished this browser (tab closed, or a canvas-editor
-    /// handoff): let the AX/OCR path reclaim it on the next scan.
-    func clearExtensionOwned(_ bundleID: String) { extensionOwned.removeValue(forKey: bundleID) }
-
-    func isBrowserBundle(_ bundleID: String) -> Bool { browsers.isBrowser(bundleID) }
 
     /// The single coalescing one-shot every trigger funnels through. Each call
     /// resets the timer, meaning rapid events (like continuous scrolling or
@@ -350,21 +330,6 @@ final class TextAcquisitionService {
         onPermissionState?(false, false)
 
         let isBrowser = browsers.isBrowser(bundleID)
-
-        // The companion extension is feeding this browser's text + positions.
-        // Skip the slow AX text walk and the empty→nudge→retry→OCR cascade
-        // entirely (that path is the ~3s cold-start latency); the extension
-        // paints instantly. Still send the cheap, idempotent a11y nudge so the
-        // AXWebArea exists for the coordinate mapper's accurate path — nothing
-        // waits on it. A canvas-editor fallback clears ownership, so Docs still
-        // takes the AX path below.
-        if isBrowser, let owned = extensionOwned[bundleID],
-           Date().timeIntervalSince(owned) < Self.extTTL {
-            browsers.prepareAccessibility(for: app)
-            attachWindowObserversOnly(for: app.pid)
-            return
-        }
-
         if isBrowser { browsers.prepareAccessibility(for: app) }
 
         // The AX tree walk runs off the main thread exactly as before — it can
@@ -385,7 +350,7 @@ final class TextAcquisitionService {
         if !result.blocks.isEmpty {
             attachObservers(for: app.pid, blocks: result.blocks)
             
-            // FIX: Only dispatch onBlocks if the tree actually contains scoreable text.
+            // Only dispatch onBlocks if the tree actually contains scoreable text.
             // If Electron's AX tree is temporarily unrendered during scroll (exposing only
             // UI chrome), dispatching this would result in a fully `.safe` evaluation,
             // which causes MenuBarManager to present an empty flagged list, destroying

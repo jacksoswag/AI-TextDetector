@@ -10,27 +10,27 @@ import FilterCore
 ///   "ocr" — whole-screen OCR layer at floating level: it represents the
 ///     topmost visible pixels, so floating is correct.
 ///
-/// SINGLE AUTHORITATIVE UPDATE PATH (the stability contract):
-///   `present(...)` is the ONLY thing that creates, moves, restyles, or
-///   destroys a panel. It diffs the incoming blocks against what is on screen
-///   and applies the difference in one synchronous pass. There is no per-frame
-///   tracker and no second reconciliation system.
+/// AUTHORITATIVE UPDATE PATHS (the stability contract):
+///   `present(...)` creates, restyles, and destroys panels: it diffs the incoming
+///   blocks against what is on screen and applies the difference in one pass. The
+///   5 Hz `cullTimer` additionally MOVES live panels (see below). Those are the
+///   only two writers; there is no per-frame tracker beyond the 5 Hz cull.
 ///
-///   A highlight is valid ONLY for the exact app/window/text state that
-///   produced it. The moment anything can move it — scroll start, window
-///   move/resize, a tracked text element changing — the affected layer is
-///   invalidated (hidden) immediately, and the next settled scan re-presents
-///   it at correct coordinates. Highlights therefore never track stale
-///   geometry: they are present and correct, or absent. They are never wrong.
+///   A highlight is valid ONLY for the text state that produced it, but its
+///   POSITION is allowed to follow the content. When an anchor rigidly translates
+///   (same size, same text — a scroll or reflow that just shifts the block), the
+///   cull slides the panel to the anchor's live frame in place: the bracket stays
+///   glued to its text instead of hiding and waiting for a rescan. When position
+///   becomes untrackable instead (anchor gone, or moved AND reflowed) the layer is
+///   invalidated (hidden) immediately and the next settled scan re-presents it.
+///   Highlights therefore follow their content, or are absent — never stale-wrong.
 ///
-///   Invalidation is PRIMARILY event-driven: `windowEventOccurred(pid:)` fires
-///   the instant an app emits an AX window-move/resize or text-value-changed
-///   notification. But some apps remove or reposition on-screen text WITHOUT
-///   emitting any such notification (canvas/Metal renderers like Google Docs,
-///   apps that update AX geometry asynchronously). For those, a low-rate (5 Hz)
-///   `cullTimer` runs a cheap anchor-drift safety net: it re-reads one anchored
-///   panel per layer and invalidates the layer if that anchor vanished or moved.
-///   This is a backstop for the event path, not a replacement for it.
+///   This is PARTLY event-driven: `windowEventOccurred(pid:)` fires the instant an
+///   app emits an AX window-move/resize or text-value-changed notification. But
+///   some apps reposition on-screen text WITHOUT emitting one (canvas/Metal
+///   renderers like Google Docs, apps that update AX geometry asynchronously). The
+///   5 Hz cull is the backstop: it re-reads each anchored panel and follows a
+///   rigid move, or invalidates on a vanished/non-rigid one.
 ///
 /// Panels are CONTENT-keyed: identity is the block's text hash, not its
 /// position. A rescan that returns the same text repositions the existing
@@ -41,13 +41,6 @@ final class OverlayManager {
 
     static let ocrKey = "ocr"
     static func axKey(_ pid: pid_t) -> String { "ax:\(pid)" }
-    /// Browser-extension layer: text + positions come from the companion
-    /// extension's DOM read, not AX. Window-tracked (z-ordered above the browser
-    /// window) like an AX layer, but anchorless like OCR — so it is excluded from
-    /// the AX drift cull. The extension's explicit CLEAR is its invalidation path.
-    /// Keyed by pid AND tab id so two windows/tabs of one browser get distinct
-    /// layers instead of overwriting each other.
-    static func extKey(_ pid: pid_t, _ tab: String) -> String { "ext:\(pid):\(tab)" }
 
     struct Block {
         let id: String
@@ -59,6 +52,8 @@ final class OverlayManager {
         let domain: String
         let route: String
         let result: FinalDetectionResult
+        /// The block's full source text as acquired from the accessibility tree or OCR.
+        let text: String
     }
 
     var requestRescan: ((TimeInterval) -> Void)?
@@ -82,6 +77,61 @@ final class OverlayManager {
         /// in-place text edit (e.g. a Google Docs change) that moves nothing and
         /// fires no AX notification. nil for OCR (no anchor).
         var anchorRefEditSig: Int? = nil
+        /// A short, normalized prefix of the block's first line (see `leadKey`).
+        /// The cull's content-presence probe hit-tests this panel's rect and
+        /// confirms this signature is still the text rendered there — catching
+        /// removal/replacement that leaves the anchor's frame untouched and emits
+        /// no AX notification (a reused list row, a stable container's contents).
+        var leadText: String = ""
+    }
+
+    /// Lowercase, keep letters/digits, collapse every other run to one space,
+    /// drop leading space, cap at `max`. Both the stored lead signature and the
+    /// probed on-screen value pass through this so they compare on equal footing.
+    private static func normalize(_ s: String, max: Int) -> String {
+        var out = ""
+        var pendingSpace = false
+        for ch in s.lowercased() {
+            if ch.isLetter || ch.isNumber {
+                if pendingSpace, !out.isEmpty { out.append(" ") }
+                pendingSpace = false
+                out.append(ch)
+                if out.count >= max { break }
+            } else {
+                pendingSpace = true
+            }
+        }
+        return out
+    }
+
+    /// A short, normalized signature of a block's leading text, capped so it
+    /// stays inside the block's first rendered line — short enough that a
+    /// still-present block never fails the probe, long enough to be distinctive.
+    private static let leadChars = 12
+    private static func leadKey(_ text: String) -> String { normalize(text, max: leadChars) }
+
+    /// Is `lead`'s text still rendered at `rect` in `pid`'s app? Hit-tests the
+    /// first line's interior and reads whatever element sits there. Returns true
+    /// when the lead still matches OR when presence can't be read cheaply (no
+    /// element, no readable value, or a large editable we won't whole-read) —
+    /// indeterminate must never be treated as "gone". Only a positive mismatch
+    /// returns false. The probe is scoped to the owner app, so our own overlay
+    /// panels are invisible to it.
+    private static func textPresent(rect: CGRect, pid: pid_t, lead: String, primaryHeight: CGFloat) -> Bool {
+        // Cocoa rect (bottom-left) → AX point (top-left), nudged inside line 1.
+        let axPoint = CGPoint(x: rect.minX + 6, y: primaryHeight - (rect.maxY - 8))
+        guard let hit = AX.elementAt(pid: pid, axPoint: axPoint) else { return true }
+        if let chars = AX.int(hit, kAXNumberOfCharactersAttribute as String), chars > 4000 {
+            return true
+        }
+        guard let raw = AX.valueText(hit), !raw.isEmpty else { return true }
+        let v = normalize(raw, max: 160)
+        // contains(): paragraph/line elements expose the lead at their start.
+        // hasPrefix(): apps that expose per-word AXStaticText return a fragment
+        // shorter than the lead — a real prefix of it still confirms presence.
+        // Require a 4-char fragment so a common 3-letter word (the/and/for) that
+        // happens to prefix the lead can't spuriously confirm a different block.
+        return v.contains(lead) || (lead.count >= 4 && v.count >= 4 && lead.hasPrefix(v))
     }
 
     /// A cheap, change-detecting signature of an anchor's text. Character count
@@ -99,9 +149,6 @@ final class OverlayManager {
         var domain = ""
         var ownerPID: pid_t = 0
         var isOCR = false
-        /// Extension-fed layer: window-tracked but anchorless, so it is excluded
-        /// from the anchor-drift/title cull (the extension drives invalidation).
-        var isExt = false
         var windowNumber: Int?
         /// The focused window's AX title captured at paint time. A browser tab
         /// switch / navigation retitles the window without moving or destroying
@@ -122,6 +169,13 @@ final class OverlayManager {
         var windowNumber: Int?
     }
     private var previousUIState: [String: OverlayUIState] = [:]
+
+    /// Consecutive content-probe misses per panel (global id). The cull clears a
+    /// layer only after a panel misses `contentMissLimit` ticks in a row, so a
+    /// single transient AX read can never tear down a correct highlight. Pruned in
+    /// `commitUI` to the panels currently on screen.
+    private var contentMissStreak: [String: Int] = [:]
+    private static let contentMissLimit = 2
 
     private static let maxPanelsPerLayer = 30
     private static let maxAXLayers = 6
@@ -160,7 +214,6 @@ final class OverlayManager {
         state.domain = domain
         state.ownerPID = ownerPID
         state.isOCR = isOCR
-        state.isExt = layerKey.hasPrefix("ext:")
         if !isOCR, let firstRect = blocks.first?.rect {
             state.windowNumber = WindowResolver.windowNumber(pid: ownerPID, containing: firstRect)
         }
@@ -186,14 +239,14 @@ final class OverlayManager {
                 route: block.route,
                 result: block.result,
                 anchorRefRect: block.anchor.flatMap { AX.frame($0)?.axToCocoa },
-                anchorRefEditSig: block.anchor.flatMap { Self.editSignature($0) }
+                anchorRefEditSig: block.anchor.flatMap { Self.editSignature($0) },
+                leadText: Self.leadKey(block.text)
             )
         }
 
         state.panels = updatedPanels
         layers[layerKey] = state
         commitUI()
-        notifyActiveBlocks()
     }
 
     // MARK: - Central Reconciliation Loop
@@ -211,6 +264,22 @@ final class OverlayManager {
         
         applyOverlayDiff(previous: previousUIState, next: nextUIState)
         previousUIState = nextUIState
+
+        // Drop miss-streaks for panels that are no longer on screen.
+        contentMissStreak = contentMissStreak.filter { nextUIState[$0.key] != nil }
+
+        // Pets ride the active-block union, so they must be re-fanned on EVERY
+        // reconciliation — not just `present`. Any clear path (the cull,
+        // app-switch, window event) removes panels here without a following
+        // present(); fanning out from this single point is what makes a pet leave
+        // in lockstep with its highlight instead of lingering after it.
+        //
+        // The one exception is a scroll burst: it clears panels transiently and
+        // the settle scan re-presents them, while pets are merely faded (not
+        // retired) for the duration. Re-fanning the empty set here would make
+        // every scroll flush and replay the pets, so skip it — the settle scan's
+        // present() re-notifies with the correct union.
+        if !scrolling { notifyActiveBlocks() }
     }
 
     private func applyOverlayDiff(previous: [String: OverlayUIState], next: [String: OverlayUIState]) {
@@ -331,18 +400,32 @@ final class OverlayManager {
         // notification (the canvas a11y layer in Google Docs, chat output). Two
         // outcomes, so we never show a positionally-WRONG highlight yet don't
         // blink on in-place edits:
-        //   • geometry drift (anchor gone, or its origin moved) → the bracket is
-        //     in the wrong place → clear the layer NOW, then rescan.
+        //   • rigid translation (anchor moved, same size + text) → the bracket is
+        //     simply in a new place → FOLLOW it: slide the panel to the live frame
+        //     in place, no clear and no rescan (the cheap, smooth path that keeps
+        //     a highlight glued to content that scrolls or reflows rigidly).
+        //   • geometry stale (anchor gone, or moved AND reflowed) → its coordinates
+        //     are wrong and untrackable → clear the layer NOW, then rescan.
         //   • content drift (same origin, but the element resized or its text
-        //     changed) → the bracket is still positionally correct → DON'T clear;
-        //     just rescan so present() updates/removes it once the change settles.
-        //     Keeps brackets steady through streaming/typing instead of tearing
-        //     them down every 200 ms tick.
-        // Collect first, act after the loop — invalidate() calls commitUI() and we
-        // must not mutate `layers` mid-iteration.
+        //     changed) → still positionally correct → DON'T clear; just rescan so
+        //     present() updates/removes it once the change settles. Keeps brackets
+        //     steady through streaming/typing instead of tearing them down.
+        // Collect first, act after the loop — invalidate()/commitUI() and the panel
+        // moves must not mutate `layers` mid-iteration. (contentMissStreak is a
+        // separate dict, so the probe below may update it inside the loop.)
         var staleKeys: [String] = []
         var contentRescanNeeded = false
-        for (layerKey, layerState) in layers where !layerState.isOCR && !layerState.isExt {
+        // layerKey → panels that rigidly translated this tick (slide + repaint).
+        var movesByLayer: [String: [(key: String, rect: CGRect, ref: CGRect)]] = [:]
+        // Gating for the (c3) content probe, evaluated once: only the FRONTMOST
+        // app's layers, and only while the user is neither typing nor mid-scan, so
+        // we never hit-test a covered background app or read transient reflow
+        // frames. typingNow is reused by the heartbeat below.
+        let frontPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let typingNow = lastKeyDownAt.map { Date().timeIntervalSince($0) < Self.typingWindow } ?? false
+        let probeOK = !typingNow && !(isScanInProgress?() ?? false)
+        let primaryHeight = NSScreen.primaryHeight
+        for (layerKey, layerState) in layers where !layerState.isOCR {
             // (c1) Tab switch / navigation. A browser retitles its window when
             // the active tab changes, but it KEEPS the background tab's AX
             // elements alive at unchanged frames — so the frame-drift check below
@@ -362,23 +445,71 @@ final class OverlayManager {
             // where possible (editSignature), so a big editable doesn't pay a
             // whole-value read every tick. Break out the instant we know the
             // layer's position is wrong; content drift only needs a rescan.
+            var layerGeomStale = false
             var layerContentStale = false
-            for tracked in layerState.panels.values {
+            var moves: [(key: String, rect: CGRect, ref: CGRect)] = []
+            for (key, tracked) in layerState.panels {
                 guard let anchor = tracked.anchor, let ref = tracked.anchorRefRect else { continue }
                 guard let live = AX.frame(anchor)?.axToCocoa else {
-                    staleKeys.append(layerKey); break          // anchor gone → geometry stale
+                    layerGeomStale = true; break               // anchor gone → clear + rescan
                 }
-                if abs(live.minX - ref.minX) > 4 || abs(live.minY - ref.minY) > 4 {
-                    staleKeys.append(layerKey); break          // moved → wrong position → clear now
-                }
-                if abs(live.width - ref.width) > 4 || abs(live.height - ref.height) > 4 {
+                let resized = abs(live.width - ref.width) > 4 || abs(live.height - ref.height) > 4
+                let dx = live.minX - ref.minX, dy = live.minY - ref.minY
+                let movedOrigin = abs(dx) > 4 || abs(dy) > 4
+                if resized {
+                    // A reflow that ALSO shifted the origin is no longer a rigid
+                    // translation, so the old coordinates are wrong → clear now.
+                    if movedOrigin { layerGeomStale = true; break }
                     layerContentStale = true; continue         // grew/shrank in place → rescan only
+                }
+                if movedOrigin {
+                    // (c2a) Rigid translation, same size and text: FOLLOW the anchor
+                    // in place rather than hiding and waiting for a rescan. Slides
+                    // the bracket to its live position within one tick, no re-score.
+                    moves.append((key, tracked.rect.offsetBy(dx: dx, dy: dy), live))
+                    continue
                 }
                 if Self.editSignature(anchor) != tracked.anchorRefEditSig {
                     layerContentStale = true                   // in-place text edit → rescan only
                 }
             }
-            if layerContentStale { contentRescanNeeded = true }
+
+            // (c3) Content-presence probe — the position check (c2) cannot do:
+            // it validates the ANCHOR element, not that the bracketed TEXT is
+            // still rendered at the rect. Hit-test each panel's first line in the
+            // owner app's AX tree and confirm its lead signature is still there.
+            // Catches removal/replacement that leaves the anchor frame untouched
+            // and fires no AX notification (a reused row, a stable container whose
+            // contents changed, an anchorless block). Debounced by contentMissLimit
+            // so one stray read never tears down a correct highlight. Skipped while
+            // the layer is following a move (its rects are mid-update this tick).
+            if !layerGeomStale, moves.isEmpty, probeOK, layerState.ownerPID == frontPID,
+               contentProbeFindsStale(layerKey: layerKey, layerState: layerState, primaryHeight: primaryHeight) {
+                layerGeomStale = true
+            }
+
+            if layerGeomStale { staleKeys.append(layerKey) }
+            else {
+                if !moves.isEmpty { movesByLayer[layerKey] = moves }
+                if layerContentStale { contentRescanNeeded = true }
+            }
+        }
+
+        // Apply the rigid-translation follows: slide each moved panel to its live
+        // frame and repaint in place. Pets ride the same commitUI fan-out, so a
+        // bracket and its pet move together within the tick — no clear, no rescan.
+        if !movesByLayer.isEmpty {
+            for (layerKey, moves) in movesByLayer {
+                guard var st = layers[layerKey] else { continue }
+                for m in moves {
+                    guard var t = st.panels[m.key] else { continue }
+                    t.rect = m.rect
+                    t.anchorRefRect = m.ref
+                    st.panels[m.key] = t
+                }
+                layers[layerKey] = st
+            }
+            commitUI()
         }
 
         // Geometry-stale layers are cleared now (their coordinates are wrong);
@@ -396,8 +527,8 @@ final class OverlayManager {
         // re-acquire: a fresh scan reads the CURRENT positions and present()
         // repositions/removes panels. The detection cache makes the re-score
         // nearly free and the AX walk runs off the main thread. Gated on recent
-        // typing, so passive reading pays nothing.
-        let typingNow = lastKeyDownAt.map { Date().timeIntervalSince($0) < Self.typingWindow } ?? false
+        // typing (`typingNow`, computed once above), so passive reading pays
+        // nothing.
         heartbeatTicks = typingNow ? heartbeatTicks + 1 : 0
         // Skip the heartbeat while a scan is already running — its walk will
         // deliver fresh positions anyway, and stacking walks just burns battery.
@@ -413,6 +544,29 @@ final class OverlayManager {
         requestRescan?(driftRescan ? 0.25 : Self.heartbeatSettle)
     }
 
+    /// Probe every panel of `layerState` for content presence and update its
+    /// consecutive-miss streak. Returns true once any panel has missed
+    /// `contentMissLimit` ticks in a row — its bracketed text is gone from the
+    /// rect, so the layer must be cleared and rescanned. A panel whose text is
+    /// confirmed present, or can't be read, resets to zero (indeterminate ≠ gone).
+    private func contentProbeFindsStale(layerKey: String, layerState: LayerState, primaryHeight: CGFloat) -> Bool {
+        for (key, tracked) in layerState.panels {
+            guard !tracked.leadText.isEmpty else { continue }
+            let globalID = "\(layerKey)::\(key)"
+            if Self.textPresent(rect: tracked.rect, pid: layerState.ownerPID,
+                                lead: tracked.leadText, primaryHeight: primaryHeight) {
+                contentMissStreak[globalID] = 0
+            } else {
+                let n = (contentMissStreak[globalID] ?? 0) + 1
+                contentMissStreak[globalID] = n
+                // The whole layer is invalidated on the first confirmed miss, so
+                // stop probing — no point paying more AX hit-tests this tick.
+                if n >= Self.contentMissLimit { return true }
+            }
+        }
+        return false
+    }
+
     /// The focused window's AX title for `pid` — the browser tab-switch /
     /// navigation signal. A tab switch retitles the window without moving or
     /// destroying the old tab's AX elements, so this is the only cheap thing the
@@ -425,14 +579,6 @@ final class OverlayManager {
         for key in layers.keys {
             invalidate(layerKey: key)
         }
-    }
-
-    /// Remove a single layer's highlights immediately. Used by the browser
-    /// extension's explicit CLEAR (tab hidden / navigated / closed) and by the
-    /// canvas-editor fallback handoff.
-    func dropLayer(_ layerKey: String) {
-        guard layers[layerKey] != nil else { return }
-        invalidate(layerKey: layerKey)
     }
 
     private func invalidate(layerKey: String) {
@@ -507,7 +653,8 @@ final class OverlayManager {
                     anchor: tracked.anchor,
                     domain: layerState.domain,
                     route: tracked.route,
-                    result: tracked.result
+                    result: tracked.result,
+                    text: tracked.leadText
                 ))
             }
         }

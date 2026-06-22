@@ -1,6 +1,6 @@
-# AI Content Filter
+# Veritas
 
-A menu bar app for macOS that watches on-screen text, scores how AI-generated it looks, and annotates the suspicious parts: a colored outline and glow around the block, plus a small pixel-art pet that appears beside each flagged block and comments on it. Everything runs on-device. No cloud, no accounts, no telemetry, and no outbound network. The only traffic is loopback: an optional companion browser extension feeds the active tab's text to a local HTTP server on `127.0.0.1:31337`, and nothing ever leaves the Mac.
+A menu bar app for macOS that watches on-screen text, scores how AI-generated it looks, and annotates the suspicious parts: a colored outline and glow around the block, plus a small pixel-art pet that appears beside each flagged block and comments on it. Everything runs on-device. No cloud, no accounts, no telemetry, and no local servers or open ports; nothing the detector reads ever leaves the Mac. (License purchase is handled separately by an external payment processor — see Privacy.)
 
 Nothing is ever hidden. The app never blurs, blocks, or obstructs content; it highlights and it talks. Scoring is probabilistic and the product treats it that way: a small general classifier screens everything, a stronger Stage-2 model arbitrates the uncertain middle, and a minimum-length gate, a confidence/abstain gate, and a user threshold keep false positives down. When the pipeline can't be confident it says `unknown` and flags nothing — unknown is always preferred over a false positive.
 
@@ -35,15 +35,12 @@ macOS ties Accessibility and Screen Recording grants to both the app's code sign
 1. `./scripts/make-signing-cert.sh` — creates the self-signed identity in your login keychain (run once).
 2. `./scripts/install.sh` — builds Release, installs to `/Applications/AIContentFilter.app`, signs in place with that identity, and launches it. From then on a grant, once given, persists across rebuilds.
 
-The companion browser extension (`Extension/`) is optional and loaded separately as an unpacked Manifest V3 extension in a Chromium browser; without it the app still works through the Accessibility/OCR tiers.
-
 ## Text acquisition
 
 Everything is automatic; there are no manual scan actions anywhere in the product.
 
 | Tier | Source | Notes |
 |---|---|---|
-| 0 | Companion browser extension (optional) | The fastest browser path. A Manifest V3 extension (`Extension/`) walks the active tab's visible DOM for paragraph-grained text + viewport rects and POSTs them to a loopback HTTP server (`ExtensionServer`, `127.0.0.1:31337`); the native side maps the rects to screen coordinates via the page's `AXWebArea` frame and paints the overlay. It never mutates or draws on the page (highlighting stays 100% native). This skips Chromium's ~2 s lazy-AX warm-up and sends an explicit CLEAR the instant a tab switches, navigates, or unloads, so highlights never go stale. It is purely additive: with the extension not installed the app falls back to the Accessibility tiers below. Requires the local server's shared token (`aicf-local-v1`) and a `chrome-extension://` origin |
 | 1 | Browsers via Accessibility | Safari exposes web content unconditionally; Chromium (Chrome, Edge, Brave, Arc, Vivaldi, Opera) builds its web AX tree after the app sets `AXEnhancedUserInterface`, with a one-shot retry while the tree warms up. Text fragments are clustered into paragraph blocks by geometry, and the page URL from `AXWebArea` supplies the real domain, so Trusted Sites and per-domain learning work on actual hostnames |
 | 2 | Native apps via Accessibility | Same walk with a smaller budget; `AXStaticText` is usually already paragraph-grained. Electron apps (Claude, Slack, VS Code) are coaxed with `AXManualAccessibility` |
 | 3 | OCR (ScreenCaptureKit + Vision) | Event-gated fallback that fires when an Accessibility scan of the frontmost app comes back without any scoreable text — zero blocks OR nothing at the user's minimum length, so canvas surfaces (Google Docs, PDF viewers, design tools) whose AX tree only carries toolbar chrome still get covered. OCR text keeps the triggering app's identity (so AI-chat desktop apps get provenance and per-app calibration) and acts on first sight — the streaming stability gate exempts OCR because its 20 s cooldown makes two identical noisy reads impossible. Never concurrent, at most one pass per app per 20 seconds. Screen Recording permission is preflighted silently; the system prompt appears once, the first time OCR is actually needed, and a quiet fix-it row in the menu covers the declined case. Captures are processed in memory and never leave the Mac |
@@ -67,7 +64,7 @@ The pipeline order is fixed: acquisition → normalization → routing → heuri
 |---|---|---|---|
 | 0. Domain router | Deterministic lexicon/structure classifier over seven registers (conversation, academic, news, social, marketing, technical, creative) plus web-domain hints; picks at most one expert per block, `general` when unsure. Routed decisions are content-cached | <1 ms | ~0.1 ms |
 | 1. Heuristic feature engine | Deterministic stylometric features: lexical diversity, trigram repetition, sentence-length variance, punctuation stability, entropy, burstiness, uniformity, stock-phrase lexicon | <1 ms | 0.23 ms |
-| 2. Core ML classifiers | **General detector** (always runs): `MayZhou/e5-small-lora-ai-generated-detector` (e5-small/MiniLM family, 33M params, MIT), FP16 ML Program at sequence length 256 — with **Stage-2 escalation**: `Donnyed/LLM_Detector_Preview_model` (ModernBERT-large, ~396M params, Apache-2.0) at sequence length 512 — FP16 on the **Neural Engine** (757 MB, parity 0.007 vs PyTorch, ~144 ms/window), taking over the fast model's ambiguous middle for blocks whose Stage-1 score lands in the `[0.40, 0.93]` band (OR with high cross-window dispersion) and that run at least 120 words (the Stage-2 model over-flags short text, so short blocks are never escalated); confident fast verdicts never pay its latency, each unique text escalates at most once (cached), and borderline blocks refine one at a time so each highlight streams in within ~144 ms | <10 ms screen | 4.0 ms single, 5.7 ms/block batched (fast screen) |
+| 2. Core ML classifiers | **General detector** (always runs): `MayZhou/e5-small-lora-ai-generated-detector` (e5-small/MiniLM family, 33M params, MIT), FP16 ML Program at sequence length 256 — with **Stage-2 escalation**: `Donnyed/LLM_Detector_Preview_model` (ModernBERT-large, ~396M params, no declared license — see THIRD-PARTY-NOTICES.md) at sequence length 512 — FP16 on the **Neural Engine** (757 MB, parity 0.007 vs PyTorch, ~144 ms/window), taking over the fast model's ambiguous middle for blocks whose Stage-1 score lands in the `[0.40, 0.93]` band (OR with high cross-window dispersion) and that run at least 120 words (the Stage-2 model over-flags short text, so short blocks are never escalated); confident fast verdicts never pay its latency, each unique text escalates at most once (cached), and borderline blocks refine one at a time so each highlight streams in within ~144 ms | <10 ms screen | 4.0 ms single, 5.7 ms/block batched (fast screen) |
 | 3. Calibration engine | Rule-based, no ML: per-domain temperature scaling (`CalibrationEngine`, hand-set placeholders until `scripts/calibrate.py` fits them on labeled data) plus content-keyed exponential smoothing against jitter (`TemporalStabilizer`) | ~0 | ~0 |
 
 Each classifier is compiled to `.mlmodelc`; compute units come from its `model-info.json` (`compute_units`). The general detector uses `.all` (Neural Engine first, then GPU, then CPU); Stage-2 declares `cpu_and_ne` and is pinned to the Neural Engine (its `.all` path otherwise leaks work onto the slower GPU). The scoring head is deterministic: softmax over the encoder's logits plus optional Platt scaling from `model-info.json`. Inference is batched (one Core ML batch per detector per evaluation pass) and scores are cached by content hash so re-encounters skip inference. There is no Python anywhere in the runtime.
@@ -154,10 +151,8 @@ Speech is fully deterministic: `index = fnv1a(block_id + pet_id + state) % templ
 
 | Pet | Personality | Voice |
 |---|---|---|
-| Scout the owl | analyst | factual, neutral: "Sentence rhythm is unusually even here." |
 | Mochi the blob | companion | soft, friendly, reassuring |
 | Brill the cat | skeptical | dry, doubting, a little smug |
-| Glitch the gremlin | chaotic | exaggerated comic alarm |
 
 ### Custom pets
 
@@ -177,7 +172,7 @@ Pets are single JSON files with all assets embedded as base64, so import/export 
 }
 ```
 
-Built-ins live in the app bundle (`Resources/Pets/`); custom and imported pets live in `~/Library/Application Support/AIContentFilter/Pets/`. The four built-in JSONs are generated by `scripts/generate-pets.py` (Pillow), which also writes inspectable frames to `Assets/PetPreviews/`. (Directory and type names keep the historical `Pet` spelling; the product surface says pet.)
+Built-ins live in the app bundle (`Resources/Pets/`); custom and imported pets live in `~/Library/Application Support/AIContentFilter/Pets/`. The two built-in JSONs are generated by `scripts/generate-pets.py` (Pillow), which also writes inspectable frames to `Assets/PetPreviews/`. (Directory and type names keep the historical `Pet` spelling; the product surface says pet.)
 
 ## The menu
 
@@ -221,7 +216,7 @@ public protocol PrimaryClassifier: Sendable {
 
 Three upgrade hooks are wired:
 
-- **Stage-2 cascade.** SHIPPED: `Models/Stage2/` carries `Donnyed/LLM_Detector_Preview_model` (ModernBERT-large, Apache-2.0), converted by `scripts/convert-stage2-modernbert.py`. The general detector screens everything; only blocks whose Stage-1 score lands in the `[0.40, 0.93]` band (or with high cross-window dispersion) and that run ≥120 words escalate to Stage-2 via `DetectionEngine.evaluate(deferStage2:)` + `refine(...)`, and the Stage-2 verdict wins. Stage-2 uses a byte-level BPE tokenizer (`bpe-vocab.json` + `bpe-merges.json` + `BPETokenizer`, pinned to the HF reference by generated test vectors); swap in any stronger ModernBERT fine-tune with the same artifact layout.
+- **Stage-2 cascade.** SHIPPED: `Models/Stage2/` carries `Donnyed/LLM_Detector_Preview_model` (ModernBERT-large, no declared license — see THIRD-PARTY-NOTICES.md), converted by `scripts/convert-stage2-modernbert.py`. The general detector screens everything; only blocks whose Stage-1 score lands in the `[0.40, 0.93]` band (or with high cross-window dispersion) and that run ≥120 words escalate to Stage-2 via `DetectionEngine.evaluate(deferStage2:)` + `refine(...)`, and the Stage-2 verdict wins. Stage-2 uses a byte-level BPE tokenizer (`bpe-vocab.json` + `bpe-merges.json` + `BPETokenizer`, pinned to the HF reference by generated test vectors); swap in any stronger ModernBERT fine-tune with the same artifact layout.
 - **Per-register experts.** PLANNED (not yet wired): the `DomainRouter` already picks a register per block, but no per-register expert model is loaded today — the general detector + Stage-2 cascade is the shipping path.
 - **Platt calibration.** Add `"calibration": {"temperature": T, "bias": B}` to `model-info.json` and every window probability is recalibrated in logit space. `scripts/calibrate.py` fits both values on your own labeled CSV.
 
@@ -266,15 +261,12 @@ ai-detector/
 │       ├── Diagnostics/     SemanticEventLog (replay/explainability records)
 │       └── Settings/ Trust/ Stats/ Privacy/   (Feedback/ is an empty placeholder)
 ├── App/                     Menu bar app
-│   ├── Acquisition/         AX walk, AX event observers, OCR fallback,
-│   │                        ExtensionServer (loopback 127.0.0.1:31337)
+│   ├── Acquisition/         AX walk, AX event observers, OCR fallback
 │   ├── Overlay/             HighlightPanel, OverlayManager, pointer ring
 │   ├── Pet/                 PetCoordinator (per-block instances), panels,
 │   │                        Library + Editor windows
 │   ├── Managers/            MenuBarManager (orchestration), BrowserIntegrationService
 │   └── UI/                  Menu panel
-├── Extension/               Companion Manifest V3 browser extension
-│                            (content.js + background.js + manifest.json)
 ├── scripts/                 bootstrap.sh, convert-model.py,
 │                            convert-stage2-modernbert.py, generate-pets.py,
 │                            finetune-lora.py, calibrate.py, …
@@ -291,10 +283,10 @@ The suite covers the state-band boundaries, threshold defaults/clamping (and tha
 
 ## Privacy
 
-- No outbound network. Model inference is Core ML on-device. The only network surface is a loopback HTTP server (`ExtensionServer`, `127.0.0.1:31337`) that the optional companion browser extension POSTs page text to; it binds to loopback only, requires a shared token plus a `chrome-extension://` origin, and nothing it receives ever leaves the Mac. With the extension not installed the server simply sits idle.
-- Stored locally: settings, trusted domains, usage counters, per-domain calibration parameters, and your custom pets. Page text is processed in memory and never written to disk.
+- No outbound network. Model inference is Core ML on-device. The app runs no local servers and opens no network ports; nothing the detector reads ever leaves the Mac.
+- Stored locally: settings, trusted domains, usage counters, per-domain calibration parameters, and your custom pets. If a license is activated, the license key (which encodes the buyer name + email) sits in `UserDefaults` and the trial start/last-seen timestamps in the Keychain (`dev.aicf.Veritas.trial`). Page text is processed in memory and never written to disk.
 - Per-domain temperature calibration is hand-set (or fitted offline via `scripts/calibrate.py`) and applied at scoring time; models are never retrained or modified on-device. (The Correct/Wrong/Ignore feedback loop described above is planned, not yet shipped, so no feedback counters are stored today.)
-- "Erase All Local Data" wipes the stored data above, including custom pets. Built-in pets live in the app bundle and survive.
+- "Erase All Local Data" wipes the stored data above, including custom pets. Built-in pets live in the app bundle and survive. The license key and trial anchor are intentionally preserved (`PrivacyManager.eraseAllLocalData`) so a reset never drops a paid key or restarts the trial.
 
 ## Known limitations
 

@@ -10,6 +10,7 @@ key format is produced by the Stripe webhook (web/api/stripe-webhook.js).
 import argparse
 import base64
 import datetime
+import getpass
 import json
 import os
 
@@ -23,6 +24,19 @@ def b64url(b: bytes) -> str:
     return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
 
 
+def load_private_key(data: bytes):
+    """Load the signing key, encrypted or not. Passphrase comes from
+    LICENSE_KEY_PASSPHRASE, else an interactive prompt if the key is encrypted."""
+    env = os.environ.get("LICENSE_KEY_PASSPHRASE")
+    try:
+        return serialization.load_pem_private_key(
+            data, password=env.encode() if env else None
+        )
+    except (TypeError, ValueError):
+        pw = getpass.getpass("Private key passphrase: ")
+        return serialization.load_pem_private_key(data, password=pw.encode())
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--name", required=True)
@@ -33,7 +47,7 @@ def main() -> None:
     if not os.path.exists(PRIV):
         raise SystemExit("No private key. Run scripts/license-keygen.py first.")
     with open(PRIV, "rb") as f:
-        priv = serialization.load_pem_private_key(f.read(), password=None)
+        priv = load_private_key(f.read())
 
     payload = {
         "name": a.name,
