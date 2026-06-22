@@ -90,7 +90,7 @@ documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Pricing
 
-A 14-day free trial, then $7.99 one time, for use on your own Macs. After buying,
+A 7-day free trial, then $7.99 one time, for use on your own Macs. After buying,
 paste your license key into the menu (Enter License) to unlock. Buy at
 [CHECKOUT_URL].
 

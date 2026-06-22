@@ -25,14 +25,14 @@ public struct LicenseRecord: Equatable, Sendable {
 /// Offline license gate. License keys are Ed25519-signed payloads verified
 /// locally against the embedded public key (`Brand.licensePublicKeyBase64`), so
 /// activation needs no network and the app keeps its "nothing leaves the Mac"
-/// promise. A 14-day trial runs before a key is required. Builds compiled with
+/// promise. A 7-day trial runs before a key is required. Builds compiled with
 /// the OWNER_BUILD flag (scripts/install.sh sets it) are always unlocked, so the
 /// owner never pays; the public release build (scripts/release.sh) does not set
 /// it and enforces the trial/license.
 public final class LicenseManager: ObservableObject {
 
     public static let shared = LicenseManager()
-    public static let trialDays = 14
+    public static let trialDays = 7
 
     private enum Key {
         static let license = "license.key"

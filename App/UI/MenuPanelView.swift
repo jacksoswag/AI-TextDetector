@@ -525,7 +525,7 @@ private struct LicenseSection: View {
         case .trial(let days):
             HStack(spacing: 8) {
                 Image(systemName: "clock.badge.checkmark").foregroundStyle(.secondary)
-                Text("Trial — \(days) day\(days == 1 ? "" : "s") left").font(.caption)
+                Text("Trial, \(days) day\(days == 1 ? "" : "s") left").font(.caption)
                 Spacer()
                 Button("Buy") { manager.openPurchase() }.controlSize(.small)
                 Button("Enter Key") { showEntry = true }.controlSize(.small)
