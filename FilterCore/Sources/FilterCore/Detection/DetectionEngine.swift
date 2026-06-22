@@ -4,10 +4,10 @@ public final class DetectionEngine: @unchecked Sendable {
     
     private let classifierProvider: @Sendable () -> PrimaryClassifier?
     private let stage2Provider: @Sendable () -> PrimaryClassifier?
-    /// Gate for the always-on overlay path: when it returns false (trial ended,
-    /// no license) every block comes back `.unlicensed` and nothing is scored.
-    /// Defaults to always-on, so tests, benchmarks, and the manual check window
-    /// are unaffected. The app passes `{ LicenseManager.isCurrentlyActive() }`.
+    /// Gate for the always-on overlay path: when it returns false (no license)
+    /// every block comes back `.unlicensed` and nothing is scored. Defaults to
+    /// always-on, so tests, benchmarks, and the manual check window are
+    /// unaffected. The app passes `{ LicenseManager.isCurrentlyActive() }`.
     private let licenseGate: @Sendable () -> Bool
 
     private let calibration: CalibrationEngine
@@ -424,6 +424,12 @@ public final class DetectionEngine: @unchecked Sendable {
     /// produced these ids already retained the full on-screen set.
     public func refine(blocks: [BlockInput], domain: String?, source: TextSource = .native) async -> [BlockVerdict] {
         let settings = SettingsSnapshot.current(defaults)
+        // Re-check the license here, not just in evaluate(): a license can lapse
+        // between the deferred Phase-1 pass and this Phase-2 refine, and Stage-2
+        // inference must never run for an unlicensed user.
+        guard licenseGate() else {
+            return blocks.map { BlockVerdict(id: $0.id, result: .insufficientData, shouldHighlight: false, skipReason: .unlicensed) }
+        }
         guard settings.isEnabled, !blocks.isEmpty, let stage2 = getStage2() else {
             return blocks.map { BlockVerdict(id: $0.id, result: .insufficientData, shouldHighlight: false, skipReason: .modelUnavailable) }
         }

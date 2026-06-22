@@ -8,6 +8,10 @@ import FilterCore
 /// their parent, and bindings need direct access anyway.
 struct MenuPanelView: View {
     @EnvironmentObject private var manager: MenuBarManager
+    // Observe the license singleton directly so the Check Text gate below
+    // re-enables the instant a key is activated; a nested ObservableObject
+    // doesn't republish through `manager`.
+    @ObservedObject private var license = LicenseManager.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -68,9 +72,10 @@ struct MenuPanelView: View {
                 Button {
                     manager.openTextCheck()
                 } label: {
-                    Label("Check Text", systemImage: "text.magnifyingglass")
+                    Label("Check Text", systemImage: license.isActive ? "text.magnifyingglass" : "lock")
                 }
                 .buttonStyle(.plain)
+                .disabled(!license.isActive)
 
                 Spacer()
 
@@ -521,8 +526,8 @@ private struct PrivacyContent: View {
 
 // MARK: - License + About
 
-/// Trial countdown / buy / enter-license. Shows nothing for owner or licensed
-/// builds, so a paying user sees a clean panel.
+/// Buy / enter-license prompt for the unlicensed state. Shows nothing for owner
+/// or licensed users, so a paying user sees a clean panel.
 private struct LicenseSection: View {
     @ObservedObject var license: LicenseManager
     let manager: MenuBarManager
@@ -555,25 +560,11 @@ private struct LicenseSection: View {
             } else {
                 EmptyView()
             }
-        case .trial(let days):
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 8) {
-                    Image(systemName: "clock.badge.checkmark").foregroundStyle(.secondary)
-                    Text("Always-on detection · free for \(days) more day\(days == 1 ? "" : "s")")
-                        .font(.caption)
-                    Spacer()
-                    Button("Buy") { manager.openPurchase() }.controlSize(.small)
-                    Button("Enter Key") { showEntry = true }.controlSize(.small)
-                }
-                Text("A paid feature once the trial ends. Pasting into Check Text stays free.")
-                    .font(.caption2).foregroundStyle(.secondary)
-            }
-            .popover(isPresented: $showEntry) { entryForm }
-        case .expired:
+        case .unlicensed:
             VStack(alignment: .leading, spacing: 6) {
-                Label("Always-on detection is paid", systemImage: "lock.fill")
+                Label("Veritas is a paid app", systemImage: "lock.fill")
                     .font(.callout.weight(.medium)).foregroundStyle(.orange)
-                Text("Your trial has ended. Buy Veritas to resume watching as you read. Pasting into Check Text stays free.")
+                Text("Buy once to unlock detection: both watching as you read and the manual Check Text.")
                     .font(.caption2).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack {

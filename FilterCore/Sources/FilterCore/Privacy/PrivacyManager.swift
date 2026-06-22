@@ -23,8 +23,8 @@ public enum PrivacyManager {
     /// What we store, so the privacy screen can be concrete about it.
     public static let storedDataDescription = """
     Stored on your device only: settings, trusted site list, usage counters, \
-    and any pets you create. Erasing leaves your license and trial status \
-    untouched, so it never removes a key you entered or restarts a trial.
+    and any pets you create. Erasing leaves your license untouched, so it never \
+    removes a key you entered.
     """
 
     /// Wipe every preference, statistic, trusted-site list, and user-created
@@ -38,8 +38,8 @@ public enum PrivacyManager {
             StatisticsManager.Key.words, StatisticsManager.Key.blocks,
             StatisticsManager.Key.reveals,
         ]
-        // License key and trial anchor are deliberately NOT erased: wiping them
-        // would either drop a key the user paid for or hand out a fresh trial.
+        // The license key is deliberately NOT erased: wiping it would drop a key
+        // the user paid for.
         keys.forEach(defaults.removeObject(forKey:))
         // Custom pets are user-created local data and must go with the
         // rest; built-in pets live in the app bundle and are untouched.

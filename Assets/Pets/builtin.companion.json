@@ -1,13 +1,6 @@
 {
   "id": "builtin.companion",
   "name": "Mochi",
-  "personality_base": "companion",
-  "tone": {
-    "seriousness": 0.3,
-    "verbosity": 0.6,
-    "sarcasm": 0.0,
-    "emotion": 0.9
-  },
   "speech_templates": {
     "safe": [
       "Feels warm and human. Yay!",

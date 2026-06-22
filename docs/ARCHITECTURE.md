@@ -64,7 +64,7 @@ The pipeline order is fixed: acquisition → normalization → routing → heuri
 |---|---|---|---|
 | 0. Domain router | Deterministic lexicon/structure classifier over seven registers (conversation, academic, news, social, marketing, technical, creative) plus web-domain hints; picks at most one expert per block, `general` when unsure. Routed decisions are content-cached | <1 ms | ~0.1 ms |
 | 1. Heuristic feature engine | Deterministic stylometric features: lexical diversity, trigram repetition, sentence-length variance, punctuation stability, entropy, burstiness, uniformity, stock-phrase lexicon | <1 ms | 0.23 ms |
-| 2. Core ML classifiers | **General detector** (always runs): `MayZhou/e5-small-lora-ai-generated-detector` (e5-small/MiniLM family, 33M params, MIT), FP16 ML Program at sequence length 256 — with **Stage-2 escalation**: `Donnyed/LLM_Detector_Preview_model` (ModernBERT-large, ~396M params, no declared license — see THIRD-PARTY-NOTICES.md) at sequence length 512 — FP16 on the **Neural Engine** (757 MB, parity 0.007 vs PyTorch, ~144 ms/window), taking over the fast model's ambiguous middle for blocks whose Stage-1 score lands in the `[0.40, 0.93]` band (OR with high cross-window dispersion) and that run at least 120 words (the Stage-2 model over-flags short text, so short blocks are never escalated); confident fast verdicts never pay its latency, each unique text escalates at most once (cached), and borderline blocks refine one at a time so each highlight streams in within ~144 ms | <10 ms screen | 4.0 ms single, 5.7 ms/block batched (fast screen) |
+| 2. Core ML classifiers | **General detector** (always runs): a fine-tuned e5-small/MiniLM-family encoder (33M params, MIT base) trained on a deconfounded matched-pair corpus, FP16 ML Program at sequence length 256 — with **Stage-2 escalation**: a fine-tuned ModernBERT-large (~396M params, base declares no license — see THIRD-PARTY-NOTICES.md) at sequence length 512 — FP16 on the **Neural Engine** (757 MB, parity 0.0001 vs PyTorch, ~144 ms/window), taking over the fast model's ambiguous middle for blocks whose Stage-1 score lands in the `[0.40, 0.93]` band (OR with high cross-window dispersion) and that run at least 120 words (the Stage-2 model over-flags short text, so short blocks are never escalated); confident fast verdicts never pay its latency, each unique text escalates at most once (cached), and borderline blocks refine one at a time so each highlight streams in within ~144 ms | <10 ms screen | 4.0 ms single, 5.7 ms/block batched (fast screen) |
 | 3. Calibration engine | Rule-based, no ML: per-domain temperature scaling (`CalibrationEngine`, hand-set placeholders until `scripts/calibrate.py` fits them on labeled data) plus content-keyed exponential smoothing against jitter (`TemporalStabilizer`) | ~0 | ~0 |
 
 Each classifier is compiled to `.mlmodelc`; compute units come from its `model-info.json` (`compute_units`). The general detector uses `.all` (Neural Engine first, then GPU, then CPU); Stage-2 declares `cpu_and_ne` and is pinned to the Neural Engine (its `.all` path otherwise leaks work onto the slower GPU). The scoring head is deterministic: softmax over the encoder's logits plus optional Platt scaling from `model-info.json`. Inference is batched (one Core ML batch per detector per evaluation pass) and scores are cached by content hash so re-encounters skip inference. There is no Python anywhere in the runtime.
@@ -156,16 +156,14 @@ Speech is fully deterministic: `index = fnv1a(block_id + pet_id + state) % templ
 
 ### Custom pets
 
-Pet Library (in the menu) lists every pet with live animation previews and sets the active one. Create Pet opens an editor: name, personality base, four tone sliders (seriousness, verbosity, sarcasm, emotion), per-state speech templates, and asset wells for a base PNG plus idle/track/alert/fly_in/fly_out GIFs. Built-ins are read-only; Duplicate & Edit copies one into a custom pet.
+Pet Library (in the menu) lists every pet with live animation previews and sets the active one. New Pet opens an editor with three sections: a name, per-state speech templates (one tab per detection state — safe, uncertain, suspicious, high, very_high), and asset wells for a required base PNG plus optional idle/track/alert/fly_in/fly_out GIFs. Built-ins are read-only; Duplicate & Edit copies one into an editable custom pet.
 
 Pets are single JSON files with all assets embedded as base64, so import/export is one file with full round-trip fidelity:
 
 ```json
 {
-  "id": "builtin.analyst",
-  "name": "Scout",
-  "personality_base": "analyst",
-  "tone": { "seriousness": 0.9, "verbosity": 0.4, "sarcasm": 0.1, "emotion": 0.2 },
+  "id": "builtin.companion",
+  "name": "Mochi",
   "speech_templates": { "safe": ["…"], "uncertain": ["…"], "suspicious": ["…"], "high": ["…"], "very_high": ["…"] },
   "animation_profile": { "idle": "idle", "track": "track", "alert": "alert" },
   "assets": { "base_png": "<base64>", "gifs": { "idle": "…", "track": "…", "alert": "…", "fly_in": "…", "fly_out": "…" } }
@@ -259,7 +257,7 @@ ai-detector/
 │       ├── Support/         WordPieceTokenizer, BPETokenizer, TextMetrics,
 │       │                    BlockClustering
 │       ├── Diagnostics/     SemanticEventLog (replay/explainability records)
-│       └── Settings/ Trust/ Stats/ Privacy/   (Feedback/ is an empty placeholder)
+│       └── Settings/ Trust/ Stats/ Privacy/ Licensing/   (Feedback/ is an empty placeholder)
 ├── App/                     Menu bar app
 │   ├── Acquisition/         AX walk, AX event observers, OCR fallback
 │   ├── Overlay/             HighlightPanel, OverlayManager, pointer ring
@@ -276,7 +274,7 @@ ai-detector/
 ## Tests
 
 ```
-cd FilterCore && swift test        # 37 tests
+cd FilterCore && swift test        # 46 tests
 ```
 
 The suite covers the state-band boundaries, threshold defaults/clamping (and that the legacy threshold key is ignored), trust-score tiers and domain normalization, the detection cache's LRU eviction and cache-hit-skips-inference behavior, "Erase All Local Data" key removal, the privacy copy's no-blur/no-hide guarantee, the window/sampling logic, block clustering (column merges, paragraph separation, fragment drops), lone-spike damping, single-batch Stage-1 dispatch, fail-fast when Stage-1 is unavailable, the escalation gate (no escalation when confident, only borderline blocks escalate, too-short blocks preserve order), the deferred Stage-2 + `refine` path and its caching, stabilizer retention, pet speech-template keys, and WordPiece/BPE encoding (the BPE tokenizer is checked bit-exact against `tokenizer-test-vectors.json`). When `Models/` is present, additional integration tests load the real general detector and Stage-2 ModernBERT to check class separation, buried-AI catch, and latency. The Stage-2 conversion numbers in this README come from each model's `model-info.json`.
@@ -284,9 +282,9 @@ The suite covers the state-band boundaries, threshold defaults/clamping (and tha
 ## Privacy
 
 - No outbound network. Model inference is Core ML on-device. The app runs no local servers and opens no network ports; nothing the detector reads ever leaves the Mac.
-- Stored locally: settings, trusted domains, usage counters, per-domain calibration parameters, and your custom pets. If a license is activated, the license key (which encodes the buyer name + email) sits in `UserDefaults` and the trial start/last-seen timestamps in the Keychain (`dev.aicf.Veritas.trial`). Page text is processed in memory and never written to disk.
+- Stored locally: settings, trusted domains, usage counters, per-domain calibration parameters, and your custom pets. If a license is activated, the license key (which encodes the buyer name + email) sits in `UserDefaults`. Page text is processed in memory and never written to disk.
 - Per-domain temperature calibration is hand-set (or fitted offline via `scripts/calibrate.py`) and applied at scoring time; models are never retrained or modified on-device. (The Correct/Wrong/Ignore feedback loop described above is planned, not yet shipped, so no feedback counters are stored today.)
-- "Erase All Local Data" wipes the stored data above, including custom pets. Built-in pets live in the app bundle and survive. The license key and trial anchor are intentionally preserved (`PrivacyManager.eraseAllLocalData`) so a reset never drops a paid key or restarts the trial.
+- "Erase All Local Data" wipes the stored data above, including custom pets. Built-in pets live in the app bundle and survive. The license key is intentionally preserved (`PrivacyManager.eraseAllLocalData`) so a reset never drops a paid key.
 
 ## Known limitations
 

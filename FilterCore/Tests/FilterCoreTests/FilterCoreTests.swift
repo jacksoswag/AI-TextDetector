@@ -140,8 +140,8 @@ final class SupportTests: XCTestCase {
     }
 
     func testThresholdDefaultsAndClamping() {
-        XCTAssertEqual(SettingsManager.defaultThreshold, 0.60, accuracy: 1e-9)
-        XCTAssertEqual(SettingsSnapshot.current(defaults).threshold, 0.60, accuracy: 1e-9)
+        XCTAssertEqual(SettingsManager.defaultThreshold, 0.85, accuracy: 1e-9)
+        XCTAssertEqual(SettingsSnapshot.current(defaults).threshold, 0.85, accuracy: 1e-9)
 
         defaults.set(0.99, forKey: SettingsKey.thresholdV2)
         XCTAssertEqual(SettingsSnapshot.current(defaults).threshold, 0.95, accuracy: 1e-9)
@@ -153,7 +153,7 @@ final class SupportTests: XCTestCase {
         // A pre-§3.1 install left 0.99 in the old probability-bar key; the
         // final-score threshold must not inherit it.
         defaults.set(0.99, forKey: SettingsKey.threshold)
-        XCTAssertEqual(SettingsSnapshot.current(defaults).threshold, 0.60, accuracy: 1e-9)
+        XCTAssertEqual(SettingsSnapshot.current(defaults).threshold, 0.85, accuracy: 1e-9)
     }
 
     func testTrustScoreTiers() {

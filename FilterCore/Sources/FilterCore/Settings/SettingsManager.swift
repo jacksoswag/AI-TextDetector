@@ -57,9 +57,11 @@ public struct SettingsSnapshot: Sendable {
 /// Values persist to the app defaults; everything else reads snapshots.
 public final class SettingsManager: ObservableObject {
 
-    /// 0.60 catches "Suspicious and above" out of the box — the default has to
-    /// demonstrate the product on first launch without flooding the page.
-    public static let defaultThreshold = 0.60
+    /// 0.85 highlights "High and above" out of the box: a precision-first default
+    /// for the false-positive-averse contract, sitting just under the calibrated
+    /// ~0.93 (1% FPR) point so first-launch stays quiet on human text while still
+    /// demonstrating the product.
+    public static let defaultThreshold = 0.85
     /// 30 still scores short AI artifacts (search summaries, brief chat replies).
     /// Short blocks are never escalated to the length-sensitive Stage-2 model and
     /// are painted only when Stage-1 is decisively AI (see DetectionEngine's

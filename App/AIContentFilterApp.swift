@@ -19,8 +19,8 @@ struct AIContentFilterApp: App {
     }
 }
 
-/// The menu-bar glyph. Slashed whenever Veritas is not actively watching — the
-/// master switch is off, or the trial/license has lapsed — so an expired trial
+/// The menu-bar glyph. Slashed whenever Veritas is not actively watching: the
+/// master switch is off, or no license is active. A paused or unlicensed state
 /// shows at a glance instead of detection just going quiet. Observes both nested
 /// stores directly, since a nested ObservableObject doesn't republish through the
 /// parent manager.

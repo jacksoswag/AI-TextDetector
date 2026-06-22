@@ -1,13 +1,6 @@
 {
   "id": "builtin.skeptical",
   "name": "Brill",
-  "personality_base": "skeptical",
-  "tone": {
-    "seriousness": 0.7,
-    "verbosity": 0.3,
-    "sarcasm": 0.9,
-    "emotion": 0.3
-  },
   "speech_templates": {
     "safe": [
       "Congrats, a human. Probably sober.",

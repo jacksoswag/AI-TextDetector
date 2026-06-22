@@ -30,7 +30,7 @@ wrong accusation is worse than a missed one.
   like Google Docs.
 - **Out of your way.** Highlights are click-through outlines with a faint dim.
   Nothing is blurred, blocked, or hidden. A clean page shows nothing at all.
-- **One-time price.** $7.99, perpetual license for the current major version. No
+- **One-time price.** $4.99, perpetual license for the current major version. No
   subscription.
 
 ## Features
@@ -41,7 +41,7 @@ wrong accusation is worse than a missed one.
   opinion (~144 ms) only on borderline, long-enough blocks.
 - A confidence gate that abstains ("unknown") rather than forcing a verdict.
 - Calibration tuned to reduce false positives on formal and academic prose.
-- A detection threshold slider (0.30 to 0.95, default 0.60).
+- A detection threshold slider (0.30 to 0.95, default 0.85).
 - Deterministic, content-cached verdicts: the same text always scores the same
   and never flickers on rescan.
 
@@ -56,8 +56,7 @@ wrong accusation is worse than a missed one.
 - Works across browsers and native apps via the Accessibility API.
 - OCR fallback (ScreenCaptureKit + Vision) for canvas surfaces.
 - A Trusted Sites list to skip domains you trust entirely.
-- A **Check Text** panel for pasting a passage and getting a verdict on demand;
-  stays free after the trial.
+- A **Check Text** panel for pasting a passage and getting a verdict on demand.
 - "Erase All Local Data" wipes every local setting in one click.
 
 ## Privacy
@@ -90,10 +89,10 @@ documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Pricing
 
-A 7-day free trial of automatic watch-as-you-read detection, then $7.99 one
-time, for use on your own Macs. After buying, paste your license key into the
-menu (Enter License) to unlock. The Check Text paste panel stays free even
-after the trial ends. Buy at [CHECKOUT_URL].
+Veritas is a one-time $4.99 purchase, for use on your own Macs, refundable
+within 14 days. Buy it and your license key arrives by email; paste it into the
+menu (Enter License) to unlock detection, both watching as you read and the
+manual Check Text. Buy at [CHECKOUT_URL].
 
 ## Limitations
 

@@ -22,14 +22,14 @@ fi
 echo "Building (Release, owner build — licensing bypassed)…"
 xcodegen generate >/dev/null
 # OWNER_BUILD flips LicenseManager.ownerOverride on, so a local install never
-# hits the trial or the license gate. The distribution build (scripts/release.sh)
-# omits it and enforces licensing.
+# hits the license gate. The distribution build (scripts/release.sh) omits it
+# and enforces the key.
 xcodebuild -project AIContentFilter.xcodeproj -scheme AIContentFilter \
   -configuration Release -destination 'platform=macOS' \
   -derivedDataPath .build/DerivedData \
   SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) OWNER_BUILD' build >/dev/null
 
-echo "Installing to $APP…"
+echo "Installing to ${APP}…"
 pkill -x Veritas 2>/dev/null || true
 pkill -x AIContentFilter 2>/dev/null || true   # stop any pre-rename build
 sleep 1

@@ -71,9 +71,6 @@ final class MenuBarManager: ObservableObject {
     private static let log = Logger(subsystem: "dev.aicf", category: "verdict")
 
     private var cancellables: Set<AnyCancellable> = []
-    /// Hourly tick that refreshes the published license status so the trial flips
-    /// to expired (pausing detection, slashing the icon) without a panel open.
-    private var licenseTimer: Timer?
     /// Text hashes already counted in statistics recently (rescans of the
     /// same window must not inflate the counters).
     private var countedHashes: [String: Date] = [:]
@@ -150,13 +147,6 @@ final class MenuBarManager: ObservableObject {
         }
         overlays.isScanInProgress = { [weak self] in self?.acquisition.isScanning ?? false }
 
-        // Keep the published license status fresh so an expiring trial pauses
-        // detection (and slashes the menu-bar icon) even if the user never opens
-        // the panel. Day-granular, so hourly is ample.
-        licenseTimer = Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.license.recompute() }
-        }
-
         // PETS ride the overlay union: one instance per flagged block,
         // appearing with its highlight and leaving with it. There is no
         // persistent pet — a clean page shows nothing at all.
@@ -177,8 +167,8 @@ final class MenuBarManager: ObservableObject {
 
         // One master switch controls everything, including every pet. The
         // license gate is folded in via applyRunState: detection runs only while
-        // enabled AND the trial/license is active, so an expired trial pauses
-        // scanning the same way switching the master off does.
+        // enabled AND a license is active, so an unlicensed app pauses scanning
+        // the same way switching the master off does.
         settings.$isEnabled
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.applyRunState() }
@@ -201,8 +191,8 @@ final class MenuBarManager: ObservableObject {
         needsAccessibility = !AX.isTrusted
     }
 
-    /// Detection runs only while the master switch is on AND the license/trial
-    /// is active. Re-applied whenever either changes.
+    /// Detection runs only while the master switch is on AND a license is
+    /// active. Re-applied whenever either changes.
     private func applyRunState() {
         if settings.isEnabled && license.isActive {
             acquisition.start()
@@ -396,9 +386,11 @@ final class MenuBarManager: ObservableObject {
         }
     }
 
-    /// Open the manual check window (paste text → human-vs-AI verdict). The
-    /// engine lives here, so the coordinator borrows it for the window's view.
+    /// Open the manual check window (paste text → human-vs-AI verdict). Gated:
+    /// the whole app is paid, so an unlicensed tap routes to purchase instead.
+    /// The engine lives here, so the coordinator borrows it for the window's view.
     func openTextCheck() {
+        guard license.isActive else { openPurchase(); return }
         petWindows.openTextCheck(engine: engine)
     }
 
