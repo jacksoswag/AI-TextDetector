@@ -188,8 +188,8 @@ public final class DetectionEngine: @unchecked Sendable {
         // (the documented 0.40–0.93 gate, replacing the old ±0.10-around-threshold
         // window that left most false positives unescalated). High cross-window
         // dispersion also escalates. ALL escalation is gated on a word floor:
-        // the Stage-2 model (desklib DeBERTa) is length-sensitive and over-flags
-        // short text, so short blocks are never sent to it — they rely on Stage-1
+        // the Stage-2 model (ModernBERT-large) is heavy and less reliable on very
+        // short text, so short blocks are never sent to it; they rely on Stage-1
         // plus the confidence gate in makeVerdict. These signals come from Stage-1
         // alone, so we do NOT load the ~757MB Stage-2 model to compute them
         // (deferred mode must not pay that load on a confident-only scan;
@@ -332,19 +332,19 @@ public final class DetectionEngine: @unchecked Sendable {
         lastHighlight[block.id] = clearsBar
         highlightLock.unlock()
 
-        // CONFIDENCE GATE — §3.2 "unknown over false positive". Clearing the
-        // user's threshold is necessary but not sufficient to paint. The small
-        // Stage-1 detector is trustworthy only near the extremes; formal/academic
-        // HUMAN prose concentrates in the ~0.45–0.80 middle where its false
-        // positives cluster. So a Stage-1-only score paints only when it is
-        // decisively AI (>= confidentFloor, the "high" band); a lower score that
-        // cleared the bar is left UNKNOWN (not painted), and only the stronger
-        // Stage-2 model can promote a true positive out of that middle. A Stage-2
-        // verdict is trusted at the user threshold because desklib separates
-        // human/AI cleanly. A wildly dispersed block always abstains.
+        // CONFIDENCE GATE: "unknown over false positive". Clearing the user's
+        // threshold is necessary but not sufficient to paint. No model in the
+        // cascade is trustworthy across the whole range: the small Stage-1
+        // detector is reliable only near the extremes, and the Stage-2 model
+        // (ModernBERT-large) still scores some formal HUMAN prose high. So ANY
+        // verdict, Stage-1 or Stage-2, paints only when it is decisively AI
+        // (>= confidentFloor); a lower score that cleared the bar is left UNKNOWN
+        // (not painted). Escalating to Stage-2 buys a stronger second opinion
+        // inside the ambiguous band, but its score is held to the same floor
+        // rather than trusted unconditionally. A wildly dispersed block abstains.
         let confidentFloor = 0.80
         let uncertaintyCeiling = 0.90
-        let decisivelyAI = stageUsed == "stage2" || smoothedP >= confidentFloor
+        let decisivelyAI = smoothedP >= confidentFloor
         let tooUncertain = finalUnc >= uncertaintyCeiling
         let shouldHighlight = clearsBar && decisivelyAI && !tooUncertain
 

@@ -14,6 +14,7 @@ README.orig.md
 AIContentFilter.xcodeproj/
 .build/
 build/
+dist/                 # scripts/release.sh output (signed/notarized DMG)
 DerivedData/
 FilterCore/.build/
 xcuserdata/
@@ -28,6 +29,18 @@ venv/
 # ── ML training / conversion outputs (regeneratable) ────────────────
 out/
 Models/Stage2-build/
+# Raw HF checkpoints — converted to the bundled Core ML models, not shipped
+Models/merged/
+Models/merged-new/
+# Corpus-build scratch cache (Project Gutenberg downloads)
+.cache/
+
+# ── Superseded / experimental corpora (active: data/corpus + data/corpus_v3) ──
+data/corpus_big/
+data/corpus_v2/
+data/corpus_v2_sample/
+data/corpus_agent/
+data/corpus/full.csv
 
 # ── Large model / binary artifacts (regeneratable via scripts/) ─────
 # CoreML compiled & packaged models contain multi-hundred-MB weight blobs.
@@ -48,3 +61,6 @@ test_errors.txt
 
 # ── OS junk ─────────────────────────────────────────────────────────
 .DS_Store
+
+# Local-only Claude skills (per-repo tooling, not published)
+.claude/skills/
