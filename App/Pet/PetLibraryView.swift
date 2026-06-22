@@ -88,7 +88,7 @@ struct PetLibraryView: View {
                 }
                 
                 HStack {
-                    Button("New Mascot") { coordinator.openEditor(editing: nil) }
+                    Button("New Pet") { coordinator.openEditor(editing: nil) }
                     Spacer()
                     Button("Open Folder") {
                         NSWorkspace.shared.open(registry.userDirectory)
@@ -163,7 +163,7 @@ struct PetLibraryView: View {
                 .controlSize(.small)
                 .padding(.top, 4)
             } else {
-                Text("No mascots installed.")
+                Text("No pets installed.")
                     .foregroundStyle(.secondary)
             }
             Spacer()
@@ -196,7 +196,7 @@ struct PetLibraryView: View {
         guard let pet else { return }
         let alert = NSAlert()
         alert.messageText = "Delete \"\(pet.name)\"?"
-        alert.informativeText = "This moves the mascot file to the Trash. It will be permanently deleted after 30 days."
+        alert.informativeText = "This moves the pet file to the Trash. It will be permanently deleted after 30 days."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Delete")
         alert.addButton(withTitle: "Cancel")
@@ -282,7 +282,7 @@ private struct LoadIssuesFootnote: View {
                 }
             }
         } label: {
-            Label("\(issues.count) mascot\(issues.count == 1 ? "" : "s") couldn't be loaded",
+            Label("\(issues.count) pet\(issues.count == 1 ? "" : "s") couldn't be loaded",
                   systemImage: "exclamationmark.triangle")
                 .font(.caption2)
                 .foregroundStyle(.orange)

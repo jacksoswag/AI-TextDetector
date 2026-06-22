@@ -6,7 +6,7 @@ import os.log
 
 /// Top-level orchestrator for the menu bar app. Owns the FilterCore managers,
 /// wires the acquisition → engine → highlight pipeline, drives the per-block
-/// mascots off the overlay's active-block events, and exposes the few pieces
+/// pets off the overlay's active-block events, and exposes the few pieces
 /// of state the panel shows.
 ///
 /// Status philosophy: silence when healthy. The panel surfaces exactly two
@@ -39,12 +39,12 @@ final class MenuBarManager: ObservableObject {
     let overlays = OverlayManager()
     let extensionServer = ExtensionServer()
 
-    // Mascot layer. The registry is the selection source of truth (the panel
+    // Pet layer. The registry is the selection source of truth (the panel
     // and library bind to it); the windows coordinator owns the aux windows;
-    // the mascot coordinator turns flagged blocks into per-block instances.
+    // the pet coordinator turns flagged blocks into per-block instances.
     let petRegistry = PetRegistry()
     lazy var petWindows = PetWindowsCoordinator(registry: petRegistry)
-    lazy var mascots = MascotCoordinator(registry: petRegistry)
+    lazy var pets = PetCoordinator(registry: petRegistry)
 
     /// Calm, human one-liner ("Watching 3 AI-likely blocks in Safari") or nothing.
     @Published var statusMessage: String?
@@ -57,7 +57,7 @@ final class MenuBarManager: ObservableObject {
     @Published var launchAtLogin: Bool = SMAppService.mainApp.status == .enabled {
         didSet { updateLoginItem() }
     }
-    /// Developer/support affordance: mascots speak their raw score+state and
+    /// Developer/support affordance: pets speak their raw score+state and
     /// the AX role-histogram logging turns on. One switch, two effects —
     /// `debug.mode` is read here and `debug.axDump` rides the same write so
     /// the acquisition layer's role dump follows the same toggle.
@@ -65,7 +65,7 @@ final class MenuBarManager: ObservableObject {
         didSet {
             UserDefaults.appGroup.set(debugMode, forKey: "debug.mode")
             UserDefaults.appGroup.set(debugMode, forKey: "debug.axDump")
-            mascots.debugMode = debugMode
+            pets.debugMode = debugMode
         }
     }
 
@@ -141,7 +141,7 @@ final class MenuBarManager: ObservableObject {
             self?.needsScreenRecording = sc
         }
         acquisition.onScrollActivity = { [weak self] scrolling in
-            self?.mascots.setScrolling(scrolling)
+            self?.pets.setScrolling(scrolling)
             self?.overlays.setScrolling(scrolling)
             // Kill any in-flight evaluation the instant scrolling starts so an
             // ML result from before the scroll can't re-paint stale highlights
@@ -206,25 +206,25 @@ final class MenuBarManager: ObservableObject {
         }
         extensionServer?.start()
 
-        // MASCOTS ride the overlay union: one instance per flagged block,
+        // PETS ride the overlay union: one instance per flagged block,
         // appearing with its highlight and leaving with it. There is no
         // persistent pet — a clean page shows nothing at all.
         overlays.onActiveBlocksChanged = { [weak self] blocks in
-            self?.mascots.sync(blocks: blocks.map(Self.mascotBlock))
+            self?.pets.sync(blocks: blocks.map(Self.petBlock))
         }
-        mascots.debugMode = debugMode
+        pets.debugMode = debugMode
 
-        // Mascot size: push the stored/slider value in now and on every change so
-        // live mascots resize immediately as the user drags the slider.
-        mascots.setMascotSize(CGFloat(settings.mascotSize))
-        settings.$mascotSize
+        // Pet size: push the stored/slider value in now and on every change so
+        // live pets resize immediately as the user drags the slider.
+        pets.setPetSize(CGFloat(settings.petSize))
+        settings.$petSize
             .receive(on: DispatchQueue.main)
             .sink { [weak self] size in
-                self?.mascots.setMascotSize(CGFloat(size))
+                self?.pets.setPetSize(CGFloat(size))
             }
             .store(in: &cancellables)
 
-        // One master switch controls everything, including every mascot. The
+        // One master switch controls everything, including every pet. The
         // license gate is folded in via applyRunState: detection runs only while
         // enabled AND the trial/license is active, so an expired trial pauses
         // scanning the same way switching the master off does.
@@ -238,12 +238,12 @@ final class MenuBarManager: ObservableObject {
             .sink { [weak self] _ in self?.applyRunState() }
             .store(in: &cancellables)
 
-        // Re-skin live mascots the instant the active selection changes.
+        // Re-skin live pets the instant the active selection changes.
         petRegistry.$activePetID
             .dropFirst()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                self?.mascots.activePetDidChange()
+                self?.pets.activePetDidChange()
             }
             .store(in: &cancellables)
 
@@ -260,12 +260,12 @@ final class MenuBarManager: ObservableObject {
             acquisition.stop()
             overlays.stopCulling()
             overlays.clearAll()
-            mascots.removeAll()
+            pets.removeAll()
             statusMessage = nil
         }
     }
 
-    // MARK: - Acquisition → engine → highlights + mascots
+    // MARK: - Acquisition → engine → highlights + pets
 
     private func handleAcquired(_ blocks: [AcquiredBlock], from app: RunningApp,
                                 domain: String, source: TextSource,
@@ -512,7 +512,7 @@ final class MenuBarManager: ObservableObject {
     /// Paint exactly `flagged` as the highlight set for `layerKey`, refresh the
     /// stats counters and the calm status line. Re-presents diff in place
     /// (panels are content-keyed), so phase 2 can re-present the union without
-    /// disturbing the highlights phase 1 already drew. Mascots follow via the
+    /// disturbing the highlights phase 1 already drew. Pets follow via the
     /// overlay's `onActiveBlocksChanged` fan-out.
     private func presentFlagged(_ flagged: [(AcquiredBlock, BlockVerdict)],
                                 layerKey: String, domain: String, app: RunningApp) {
@@ -540,9 +540,9 @@ final class MenuBarManager: ObservableObject {
             : "Watching \(flagged.count) AI-likely block\(flagged.count == 1 ? "" : "s") in \(app.name)"
     }
 
-    /// OverlayManager.Block → the mascot layer's block shape.
-    private static func mascotBlock(_ block: OverlayManager.Block) -> MascotCoordinator.FlaggedBlock {
-        MascotCoordinator.FlaggedBlock(
+    /// OverlayManager.Block → the pet layer's block shape.
+    private static func petBlock(_ block: OverlayManager.Block) -> PetCoordinator.FlaggedBlock {
+        PetCoordinator.FlaggedBlock(
             id: block.id,
             rect: block.rect,
             state: block.state,
@@ -554,7 +554,7 @@ final class MenuBarManager: ObservableObject {
         )
     }
 
-    /// The bands that may draw a highlight and that get a mascot.
+    /// The bands that may draw a highlight and that get a pet.
     /// safe never flags; uncertain never flags by the §12 fail-safe.
     private static func isFlagState(_ state: DetectionState) -> Bool {
         state == .suspicious || state == .high || state == .veryHigh

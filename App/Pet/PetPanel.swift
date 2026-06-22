@@ -1,19 +1,19 @@
 import AppKit
 
-/// The floating window a mascot instance lives in. Every window trait here is
-/// in service of one promise from the spec: the mascot NEVER obstructs the
+/// The floating window a pet instance lives in. Every window trait here is
+/// in service of one promise from the spec: the pet NEVER obstructs the
 /// user. It cannot be clicked, cannot steal focus, cannot become key, and
 /// rides above normal windows without ever joining the Cmd-Tab /
 /// window-cycling world.
 ///
 /// 43×43 (the art's scaled pixel size — 67% of the former 64pt footprint, so
-/// one mascot per flagged block stays a small, unobtrusive marker), borderless,
+/// one pet per flagged block stays a small, unobtrusive marker), borderless,
 /// transparent, shadowless: the pixel art is the only thing the user sees —
 /// no chrome, no card, nothing to imply a clickable surface.
 final class PetPanel: NSPanel {
 
     /// Fallback edge length when no user size is supplied. The live size is the
-    /// user's mascot-size setting, passed in by MascotCoordinator.
+    /// user's pet-size setting, passed in by PetCoordinator.
     static let defaultSize = NSSize(width: 43, height: 43)
 
     let imageView = AnimatedImageView(frame: .zero)
@@ -48,7 +48,7 @@ final class PetPanel: NSPanel {
         hidesOnDeactivate = false
 
         // A clipping container welds the art to the bracket line. The panel's
-        // right edge sits exactly on the line (see MascotCoordinator.anchorOrigin),
+        // right edge sits exactly on the line (see PetCoordinator.anchorOrigin),
         // so `masksToBounds` turns that edge into a hard wall: the art can be
         // shoved a full panel-width to the right — fully behind the line — and is
         // CLIPPED there, so it can never sweep over the text to the right of the

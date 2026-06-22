@@ -1,16 +1,16 @@
 # AI Content Filter
 
-A menu bar app for macOS that watches on-screen text, scores how AI-generated it looks, and annotates the suspicious parts: a colored outline and glow around the block, plus a small pixel-art mascot that appears beside each flagged block and comments on it. Everything runs on-device. No cloud, no accounts, no telemetry, and no outbound network. The only traffic is loopback: an optional companion browser extension feeds the active tab's text to a local HTTP server on `127.0.0.1:31337`, and nothing ever leaves the Mac.
+A menu bar app for macOS that watches on-screen text, scores how AI-generated it looks, and annotates the suspicious parts: a colored outline and glow around the block, plus a small pixel-art pet that appears beside each flagged block and comments on it. Everything runs on-device. No cloud, no accounts, no telemetry, and no outbound network. The only traffic is loopback: an optional companion browser extension feeds the active tab's text to a local HTTP server on `127.0.0.1:31337`, and nothing ever leaves the Mac.
 
 Nothing is ever hidden. The app never blurs, blocks, or obstructs content; it highlights and it talks. Scoring is probabilistic and the product treats it that way: a small general classifier screens everything, a stronger Stage-2 model arbitrates the uncertain middle, and a minimum-length gate, a confidence/abstain gate, and a user threshold keep false positives down. When the pipeline can't be confident it says `unknown` and flags nothing — unknown is always preferred over a false positive.
 
 ## Design principles
 
 - **Calm by default.** The menu shows nothing when healthy. Exactly two conditions surface: "Watching N AI-likely blocks here" while highlights are active, and a single fix-it row when a permission is missing. Telemetry lives in `os_log` (`subsystem dev.aicf`), never in the UI.
-- **Annotate, never obstruct.** Highlights are click-through outlines with a faint 10 to 15 percent dim; scrolls and clicks pass straight through to the page. Each mascot hugs a corner of its own flagged block and dodges if it would cover more than a quarter of it. The mascot's small speech bubble is comment-only and click-through; clicking it fades it (the click still reaches the page below), and it auto-dismisses on a 6 second timer.
-- **Nothing on screen unless something is flagged.** Mascots are verdict markers, not desktop pets: one instance flies in per flagged block, leaves when its block does, and a clean page shows nothing at all.
+- **Annotate, never obstruct.** Highlights are click-through outlines with a faint 10 to 15 percent dim; scrolls and clicks pass straight through to the page. Each pet hugs a corner of its own flagged block and dodges if it would cover more than a quarter of it. The pet's small speech bubble is comment-only and click-through; clicking it fades it (the click still reaches the page below), and it auto-dismisses on a 6 second timer.
+- **Nothing on screen unless something is flagged.** Pets are verdict markers, not desktop pets: one instance flies in per flagged block, leaves when its block does, and a clean page shows nothing at all.
 - **Stability over immediacy.** Blocks are acted on only once their content is identical across consecutive scans, so streaming text never makes annotations flicker; settled text confirms within about a second. Verdicts are deterministic and cached, so the same text always looks the same.
-- **Deterministic personality.** Each mascot's reactions and speech are pure functions of (text block, mascot, state). No randomness, no runtime LLM, no surprises on rescan.
+- **Deterministic personality.** Each pet's reactions and speech are pure functions of (text block, pet, state). No randomness, no runtime LLM, no surprises on rescan.
 - **Precision over recall.** The default threshold highlights only what the pipeline is confident about; uncertain blocks are never highlighted, and a score without confidence reports `unknown` instead of flagging. Missing some AI text is a smaller sin than flagging a human's writing.
 - **Everything automatic.** No scan buttons, no modes. One master switch, permissions asked in context exactly once, OCR fills Accessibility's gaps on its own. Expert models load themselves when text needs them and unload when idle.
 
@@ -101,9 +101,9 @@ The damp term is the §3.2 contract: stylometric penalties keep their full prote
 
 `domain_trust` is a 0-to-1 scale: 1.0 for sites on your trusted list, 0.0 for known AI-chat domains, 0.6 for native apps, 0.5 for the unknown web. Blocks under your minimum-length setting aren't evaluated at all; shorter blocks that are scored are never escalated to the length-sensitive Stage-2 model and are highlighted only when the fast model is decisively confident (the confidence gate, below).
 
-The decision needs two things: `final ≥ threshold` (slider, default 0.60, shifted by calibration) **and** enough confidence. This is the wired confidence/abstain gate: a Stage-1-only score that clears the bar but is not decisively AI (< 0.80, the "high" band where the small detector confuses formal-human prose for AI) is labeled `unknown` and never highlighted — only the stronger Stage-2 model can promote a true positive out of that middle. Unknown is always preferred over a false positive. The final score maps onto five states, which drive the highlight styling and the mascots:
+The decision needs two things: `final ≥ threshold` (slider, default 0.60, shifted by calibration) **and** enough confidence. This is the wired confidence/abstain gate: a Stage-1-only score that clears the bar but is not decisively AI (< 0.80, the "high" band where the small detector confuses formal-human prose for AI) is labeled `unknown` and never highlighted — only the stronger Stage-2 model can promote a true positive out of that middle. Unknown is always preferred over a false positive. The final score maps onto five states, which drive the highlight styling and the pets:
 
-| Final score | State | Highlight | Mascot |
+| Final score | State | Highlight | Pet |
 |---|---|---|---|
 | 0.00–0.30 | safe | none | none |
 | 0.30–0.60 | uncertain | none, by design | none |
@@ -115,7 +115,7 @@ Per-domain temperature scaling shifts the effective bar (softening the registers
 
 ### Feedback (planned, not yet wired)
 
-The design calls for each mascot bubble to carry three buttons — **✓ Correct** (this really is AI text), **✗ Wrong** (this is human, flag less like this), **Ignore** — feeding saturating per-domain and per-register counters that the calibration layer would consume to shift decision thresholds, with no text ever stored and no model ever retrained on-device. None of this ships today: the speech bubble is comment-only and click-through (`SpeechBubblePanel`), `CalibrationEngine` takes no user input, and there is no feedback store. The local data that does persist (settings, trusted domains, usage counters, custom mascots) is wiped by "Erase All Local Data". **No model is ever retrained or modified on-device.**
+The design calls for each pet bubble to carry three buttons — **✓ Correct** (this really is AI text), **✗ Wrong** (this is human, flag less like this), **Ignore** — feeding saturating per-domain and per-register counters that the calibration layer would consume to shift decision thresholds, with no text ever stored and no model ever retrained on-device. None of this ships today: the speech bubble is comment-only and click-through (`SpeechBubblePanel`), `CalibrationEngine` takes no user input, and there is no feedback store. The local data that does persist (settings, trusted domains, usage counters, custom pets) is wiped by "Erase All Local Data". **No model is ever retrained or modified on-device.**
 
 ### Calibration notes, honestly
 
@@ -133,9 +133,9 @@ Two generations of this table tell the story. Under §3.1, the 0.96-probability 
 
 Independent studies put open-source detector false-positive rates far above vendor claims. Treat every score as an indicator; the wrapper (threshold, confidence gate, length gate, trust list, personal-surface suppression, per-domain temperature calibration) exists because the score alone can't be trusted. The Stage-2 cascade exists for the same reason: the general 33M model is weakest on register-shifted text, and the ModernBERT-large escalation catches what formula tweaks can't.
 
-## The mascot
+## The pet
 
-A 96-pixel verdict marker in a small floating window — one **instance per flagged block**, up to 12 at once (highest scores win, deterministically). Mascots exist only while their block is flagged: they fly in beside it when the highlight appears, hold its corner while you scroll, and fly out the moment the block clears or leaves the screen. Nothing is flagged → nothing is on screen. There is no idle dock and no permanent companion; it's a mascot for the detection, not a pet.
+A 96-pixel verdict marker in a small floating window — one **instance per flagged block**, up to 12 at once (highest scores win, deterministically). Pets exist only while their block is flagged: they fly in beside it when the highlight appears, hold its corner while you scroll, and fly out the moment the block clears or leaves the screen. Nothing is flagged → nothing is on screen. There is no idle dock and no permanent companion; it's a pet for the detection, not a pet.
 
 | Behavior | When | Looks like |
 |---|---|---|
@@ -144,26 +144,26 @@ A 96-pixel verdict marker in a small floating window — one **instance per flag
 | alert | marking a high or very_high block | persistent alert animation |
 | comment | its block's state was first seen or changed | one speech bubble with a one-line comment |
 
-The mascot panel itself never intercepts clicks or scrolls and never covers the text it marks (it dodges if the corner anchor would overlap more than a quarter of the block). The speech bubble is comment-only and click-through: it parks its dismiss timer while the pointer is over it and dismisses itself 6 seconds after it last mattered; a click fades it (the click still reaches the page below). An escalating dismissal is the only mascot interaction today — one click soft-dismisses the comment (it returns on the next state change), a second click hard-dismisses it. The Correct/Wrong/Ignore feedback buttons are planned, not wired (see Feedback above).
+The pet panel itself never intercepts clicks or scrolls and never covers the text it marks (it dodges if the corner anchor would overlap more than a quarter of the block). The speech bubble is comment-only and click-through: it parks its dismiss timer while the pointer is over it and dismisses itself 6 seconds after it last mattered; a click fades it (the click still reaches the page below). An escalating dismissal is the only pet interaction today — one click soft-dismisses the comment (it returns on the next state change), a second click hard-dismisses it. The Correct/Wrong/Ignore feedback buttons are planned, not wired (see Feedback above).
 
-Movement is interpolated by Core Animation (one 0.35 s glide per event), GIF playback is driven by AppKit, and the only high-frequency code path in the app is the scroll tracker that rides highlights on their AX anchors at 30 Hz while you scroll — mascots reposition on that same tick, self-terminating 0.45 s after the last wheel.
+Movement is interpolated by Core Animation (one 0.35 s glide per event), GIF playback is driven by AppKit, and the only high-frequency code path in the app is the scroll tracker that rides highlights on their AX anchors at 30 Hz while you scroll — pets reposition on that same tick, self-terminating 0.45 s after the last wheel.
 
-Speech is fully deterministic: `index = fnv1a(block_id + mascot_id + state) % templates[state].count`. The same block, mascot, and state always produce the same line, across launches. With Debug Mode on, each line carries the block's score and state.
+Speech is fully deterministic: `index = fnv1a(block_id + pet_id + state) % templates[state].count`. The same block, pet, and state always produce the same line, across launches. With Debug Mode on, each line carries the block's score and state.
 
-### Built-in mascots
+### Built-in pets
 
-| Mascot | Personality | Voice |
+| Pet | Personality | Voice |
 |---|---|---|
 | Scout the owl | analyst | factual, neutral: "Sentence rhythm is unusually even here." |
 | Mochi the blob | companion | soft, friendly, reassuring |
 | Brill the cat | skeptical | dry, doubting, a little smug |
 | Glitch the gremlin | chaotic | exaggerated comic alarm |
 
-### Custom mascots
+### Custom pets
 
-Mascot Library (in the menu) lists every mascot with live animation previews and sets the active one. Create Mascot opens an editor: name, personality base, four tone sliders (seriousness, verbosity, sarcasm, emotion), per-state speech templates, and asset wells for a base PNG plus idle/track/alert/fly_in/fly_out GIFs. Built-ins are read-only; Duplicate & Edit copies one into a custom mascot.
+Pet Library (in the menu) lists every pet with live animation previews and sets the active one. Create Pet opens an editor: name, personality base, four tone sliders (seriousness, verbosity, sarcasm, emotion), per-state speech templates, and asset wells for a base PNG plus idle/track/alert/fly_in/fly_out GIFs. Built-ins are read-only; Duplicate & Edit copies one into a custom pet.
 
-Mascots are single JSON files with all assets embedded as base64, so import/export is one file with full round-trip fidelity:
+Pets are single JSON files with all assets embedded as base64, so import/export is one file with full round-trip fidelity:
 
 ```json
 {
@@ -177,16 +177,16 @@ Mascots are single JSON files with all assets embedded as base64, so import/expo
 }
 ```
 
-Built-ins live in the app bundle (`Resources/Pets/`); custom and imported mascots live in `~/Library/Application Support/AIContentFilter/Pets/`. The four built-in JSONs are generated by `scripts/generate-pets.py` (Pillow), which also writes inspectable frames to `Assets/PetPreviews/`. (Directory and type names keep the historical `Pet` spelling; the product surface says mascot.)
+Built-ins live in the app bundle (`Resources/Pets/`); custom and imported pets live in `~/Library/Application Support/AIContentFilter/Pets/`. The four built-in JSONs are generated by `scripts/generate-pets.py` (Pillow), which also writes inspectable frames to `Assets/PetPreviews/`. (Directory and type names keep the historical `Pet` spelling; the product surface says pet.)
 
 ## The menu
 
 The menu bar icon is a text-scan glyph (`text.viewfinder`) — dimmed when the master switch is off.
 
 - Master switch
-- Mascot Library (active-mascot picker, plus New Mascot / Duplicate & Edit / import / export, all inside the Library window)
+- Pet Library (active-pet picker, plus New Pet / Duplicate & Edit / import / export, all inside the Library window)
 - Detection Threshold slider (minimum final score that highlights, 0.30 to 0.95)
-- Mascot size slider (live: resizes every on-screen marker)
+- Pet size slider (live: resizes every on-screen marker)
 - Trusted Sites
 - Statistics (words/blocks flagged)
 - Privacy summary and "Erase All Local Data"
@@ -202,8 +202,8 @@ Minimum text length (`settings.minWords`, default 30) is a stored setting with n
 - Expert models load lazily on first routed block and unload event-driven — an idle check runs at the top of each scan, never on a timer. At most 2 experts stay resident (LRU); a machine that mostly reads news never holds a CreativeExpert in memory.
 - Event-driven scans. Scans happen when an AX notification, scroll settle, app switch, or wake event says something changed; bursts coalesce into one scan per 250 ms window. The only periodic work is the 5 Hz anchor-drift cull, and it runs only while highlights are on screen.
 - The pointer-follow ring and the scroll tracker install their event monitors only while highlights exist, and tear them down with the last panel.
-- Highlights diff per block across rescans: panels reposition and restyle in place, so unchanged blocks cost nothing. Mascots ride the same diff and the same 30 Hz scroll tick — no separate update path.
-- Mascot animation is decoded GIF playback plus one Core Animation glide per event. The app draws no frames of its own, and with nothing flagged there are no mascot windows at all.
+- Highlights diff per block across rescans: panels reposition and restyle in place, so unchanged blocks cost nothing. Pets ride the same diff and the same 30 Hz scroll tick — no separate update path.
+- Pet animation is decoded GIF playback plus one Core Animation glide per event. The app draws no frames of its own, and with nothing flagged there are no pet windows at all.
 
 ## Swapping and extending the models
 
@@ -249,9 +249,9 @@ ai-detector/
 │   └── Stage2/              Bundled stage-2 cascade model (ModernBERT-large,
 │                            bpe-vocab.json + bpe-merges.json + model-info + mlmodelc)
 ├── Assets/
-│   ├── Pets/                Built-in mascot JSONs (bundled into the app)
+│   ├── Pets/                Built-in pet JSONs (bundled into the app)
 │   └── PetPreviews/         Raw frames for inspection (not bundled)
-├── FilterCore/              Swift package: detection + mascot logic, UI-free
+├── FilterCore/              Swift package: detection + pet logic, UI-free
 │   └── Sources/FilterCore/
 │       ├── Detection/       DomainRouter + TextDomain (routing),
 │       │                    HeuristicFeatures, PersonalSurfaces, CoreMLClassifier +
@@ -269,7 +269,7 @@ ai-detector/
 │   ├── Acquisition/         AX walk, AX event observers, OCR fallback,
 │   │                        ExtensionServer (loopback 127.0.0.1:31337)
 │   ├── Overlay/             HighlightPanel, OverlayManager, pointer ring
-│   ├── Pet/                 MascotCoordinator (per-block instances), panels,
+│   ├── Pet/                 PetCoordinator (per-block instances), panels,
 │   │                        Library + Editor windows
 │   ├── Managers/            MenuBarManager (orchestration), BrowserIntegrationService
 │   └── UI/                  Menu panel
@@ -287,14 +287,14 @@ ai-detector/
 cd FilterCore && swift test        # 37 tests
 ```
 
-The suite covers the state-band boundaries, threshold defaults/clamping (and that the legacy threshold key is ignored), trust-score tiers and domain normalization, the detection cache's LRU eviction and cache-hit-skips-inference behavior, "Erase All Local Data" key removal, the privacy copy's no-blur/no-hide guarantee, the window/sampling logic, block clustering (column merges, paragraph separation, fragment drops), lone-spike damping, single-batch Stage-1 dispatch, fail-fast when Stage-1 is unavailable, the escalation gate (no escalation when confident, only borderline blocks escalate, too-short blocks preserve order), the deferred Stage-2 + `refine` path and its caching, stabilizer retention, mascot speech-template keys, and WordPiece/BPE encoding (the BPE tokenizer is checked bit-exact against `tokenizer-test-vectors.json`). When `Models/` is present, additional integration tests load the real general detector and Stage-2 ModernBERT to check class separation, buried-AI catch, and latency. The Stage-2 conversion numbers in this README come from each model's `model-info.json`.
+The suite covers the state-band boundaries, threshold defaults/clamping (and that the legacy threshold key is ignored), trust-score tiers and domain normalization, the detection cache's LRU eviction and cache-hit-skips-inference behavior, "Erase All Local Data" key removal, the privacy copy's no-blur/no-hide guarantee, the window/sampling logic, block clustering (column merges, paragraph separation, fragment drops), lone-spike damping, single-batch Stage-1 dispatch, fail-fast when Stage-1 is unavailable, the escalation gate (no escalation when confident, only borderline blocks escalate, too-short blocks preserve order), the deferred Stage-2 + `refine` path and its caching, stabilizer retention, pet speech-template keys, and WordPiece/BPE encoding (the BPE tokenizer is checked bit-exact against `tokenizer-test-vectors.json`). When `Models/` is present, additional integration tests load the real general detector and Stage-2 ModernBERT to check class separation, buried-AI catch, and latency. The Stage-2 conversion numbers in this README come from each model's `model-info.json`.
 
 ## Privacy
 
 - No outbound network. Model inference is Core ML on-device. The only network surface is a loopback HTTP server (`ExtensionServer`, `127.0.0.1:31337`) that the optional companion browser extension POSTs page text to; it binds to loopback only, requires a shared token plus a `chrome-extension://` origin, and nothing it receives ever leaves the Mac. With the extension not installed the server simply sits idle.
-- Stored locally: settings, trusted domains, usage counters, per-domain calibration parameters, and your custom mascots. Page text is processed in memory and never written to disk.
+- Stored locally: settings, trusted domains, usage counters, per-domain calibration parameters, and your custom pets. Page text is processed in memory and never written to disk.
 - Per-domain temperature calibration is hand-set (or fitted offline via `scripts/calibrate.py`) and applied at scoring time; models are never retrained or modified on-device. (The Correct/Wrong/Ignore feedback loop described above is planned, not yet shipped, so no feedback counters are stored today.)
-- "Erase All Local Data" wipes the stored data above, including custom mascots. Built-in mascots live in the app bundle and survive.
+- "Erase All Local Data" wipes the stored data above, including custom pets. Built-in pets live in the app bundle and survive.
 
 ## Known limitations
 

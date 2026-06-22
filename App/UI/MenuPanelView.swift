@@ -158,13 +158,13 @@ private struct HeaderSection: View {
     }
 }
 
-// MARK: - Mascot
+// MARK: - Pet
 
-/// Active-mascot picker plus the four library/editor/import/export entry
+/// Active-pet picker plus the four library/editor/import/export entry
 /// points. The picker binds straight to `registry.activePetID` so changing it
-/// here is the same act as selecting a mascot in the library — one selection
-/// model. (Internals keep the historical Pet* type names; the product surface
-/// says mascot: it's a verdict marker with a face, not a virtual pet.)
+/// here is the same act as selecting a pet in the library — one selection
+/// model. A pet is a verdict marker with a face: it appears beside a flagged
+/// block, comments, and leaves the moment the block clears.
 private struct PetSection: View {
     @ObservedObject var registry: PetRegistry
     let coordinator: PetWindowsCoordinator
@@ -232,14 +232,14 @@ private struct PetSection: View {
                 .padding(.vertical, 2)
             }
 
-            // Mascot size — the on-screen marker's edge length. Live: dragging
-            // resizes every visible mascot immediately. Default sits at ~1/3 of
+            // Pet size — the on-screen marker's edge length. Live: dragging
+            // resizes every visible pet immediately. Default sits at ~1/3 of
             // the range (small, with room to grow).
             HStack(spacing: 8) {
                 Text("Size")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Slider(value: $settings.mascotSize, in: SettingsManager.mascotSizeRange)
+                Slider(value: $settings.petSize, in: SettingsManager.petSizeRange)
                     .controlSize(.small)
             }
             .padding(.top, 2)
@@ -305,7 +305,7 @@ private struct ThresholdSection: View {
 // MARK: - Bottom Tabs
 
 enum BottomTab: String, CaseIterable {
-    case mascot = "Mascot"
+    case pet = "Pets"
     case trusted = "Trusted Sites"
     case statistics = "Statistics"
     case privacy = "Privacy"
@@ -317,7 +317,7 @@ private struct BottomTabsSection: View {
     @ObservedObject var settings: SettingsManager
     @ObservedObject var trust: DomainTrustManager
     @ObservedObject var stats: StatisticsManager
-    @State private var activeTab: BottomTab = .mascot
+    @State private var activeTab: BottomTab = .pet
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -330,7 +330,7 @@ private struct BottomTabsSection: View {
             .labelsHidden()
 
             switch activeTab {
-            case .mascot:
+            case .pet:
                 PetSection(registry: registry, coordinator: coordinator, settings: settings)
             case .trusted:
                 TrustedSitesContent(trust: trust)

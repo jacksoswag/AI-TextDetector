@@ -23,11 +23,11 @@ public enum PrivacyManager {
     /// What we store, so the privacy screen can be concrete about it.
     public static let storedDataDescription = """
     Stored on your device only: settings, trusted site list, usage counters, \
-    and any mascots you create.
+    and any pets you create.
     """
 
     /// Wipe every preference, statistic, trusted-site list, and user-created
-    /// mascot.
+    /// pet.
     public static func eraseAllLocalData(defaults: UserDefaults = .appGroup) {
         let keys = [
             SettingsKey.enabled, SettingsKey.threshold, SettingsKey.thresholdV2,
@@ -37,8 +37,8 @@ public enum PrivacyManager {
             StatisticsManager.Key.reveals,
         ]
         keys.forEach(defaults.removeObject(forKey:))
-        // Custom mascots are user-created local data and must go with the
-        // rest; built-in mascots live in the app bundle and are untouched.
+        // Custom pets are user-created local data and must go with the
+        // rest; built-in pets live in the app bundle and are untouched.
         // Missing directory is the common case and not an error.
         try? FileManager.default.removeItem(
             at: AppInfo.supportDirectory.appendingPathComponent("Pets"))

@@ -1,13 +1,13 @@
 import AppKit
 import FilterCore
 
-/// Per-block mascot lifecycle. The mascot is a verdict marker with a face —
+/// Per-block pet lifecycle. The pet is a verdict marker with a face —
 /// not a desktop pet: nothing is on screen while nothing is flagged, one
 /// instance appears beside EACH flagged AI block (peeking out from behind its
 /// bracket line), it comments on its own block on hover via a click-through speech
 /// bubble, and leaves the moment its block stops being flagged. No idle dock,
 /// no screen-corner companion, no presence at all on clean pages. Nothing it
-/// draws ever intercepts a click: the mascot, the bracket, and the bubble are
+/// draws ever intercepts a click: the pet, the bracket, and the bubble are
 /// all pure pass-through annotation (clicking the bubble fades it, but the
 /// click still reaches the content underneath).
 ///
@@ -15,29 +15,29 @@ import FilterCore
 /// `setScrolling` fades the swarm during a scroll burst. No timers of its own
 /// beyond the fixed fly-in/out one-shots, no per-frame work. Determinism
 /// carries over from the old presenter: behavior and speech are pure
-/// functions of (block, mascot, state) via PetStateMachine + PetSpeechEngine,
+/// functions of (block, pet, state) via PetStateMachine + PetSpeechEngine,
 /// and instance adds/removes follow a deterministic order (score, then id).
 @MainActor
-final class MascotCoordinator {
+final class PetCoordinator {
 
-    enum MascotState: Equatable {
+    enum PetState: Equatable {
         case idle
         case entering
         case attached
     }
 
-    struct MascotUIState: Equatable {
-        var state: MascotState
+    struct PetUIState: Equatable {
+        var state: PetState
         var blockRect: CGRect
         var blockState: DetectionState
         var petID: String
         var isHovered: Bool
         /// Word count of the marked block — feeds the shared line-height clamp
-        /// so the mascot anchors to the line's true drawn bottom.
+        /// so the pet anchors to the line's true drawn bottom.
         var words: Int
     }
 
-    /// Everything a mascot needs to know about the block it marks. `domain` and
+    /// Everything a pet needs to know about the block it marks. `domain` and
     /// `route` ride along to mirror OverlayManager.Block one-to-one.
     struct FlaggedBlock {
         let id: String
@@ -52,25 +52,25 @@ final class MascotCoordinator {
 
     // MARK: - Tunables
 
-    /// A page can flag dozens of blocks; more than this many mascots is a
+    /// A page can flag dozens of blocks; more than this many pets is a
     /// swarm, not an annotation. Highest-scoring blocks win, deterministically.
     static let maxInstances = 12
-    /// Resting opacity of the mascot. Every "shown" alpha funnels through this;
+    /// Resting opacity of the pet. Every "shown" alpha funnels through this;
     /// only scroll-hide (0) overrides it. (The bracket line is drawn at 0.60.)
     static let restAlpha: CGFloat = 0.80
-    /// Gap between stacked cluster elements (line ↔ text box ↔ mascot).
+    /// Gap between stacked cluster elements (line ↔ text box ↔ pet).
     /// 6.7 = 10 × 0.67 (spacings reduced 33%).
     private static let clusterGap: CGFloat = 6.7
     /// Small horizontal gap so the text box doesn't touch the bracket line in the
     /// default (left-of-bar) placement. 4 ≈ 6 × 0.67 (spacings reduced 33%).
     private static let boxLineSpacing: CGFloat = 4
-    /// Gap between the box and the mascot in the side-by-side row — tighter than
-    /// `clusterGap` so the box sits a little closer to the mascot.
+    /// Gap between the box and the pet in the side-by-side row — tighter than
+    /// `clusterGap` so the box sits a little closer to the pet.
     private static let sideBoxGap: CGFloat = 3
     /// Box width assumed when CHOOSING the placement, so the choice is identical
     /// whether or not the box is currently shown (it caps at maxContentWidth).
     private static let assumedBoxWidth = SpeechBubblePanel.maxContentWidth
-    /// Let the bracket line finish drawing at full height before the mascot
+    /// Let the bracket line finish drawing at full height before the pet
     /// peeks out from behind it — the entrance reads as "the pet emerges from
     /// behind the wall once the wall is there", not "both appear at once".
     /// Matches the bar's expand animation in HighlightPanel.expandLine (0.15s).
@@ -82,18 +82,18 @@ final class MascotCoordinator {
 
     // MARK: - State
 
-    private struct RenderedMascot {
+    private struct RenderedPet {
         let panel: PetPanel
         let bubble: SpeechBubblePanel
     }
 
     private let registry: PetRegistry
-    private var activePanels: [String: RenderedMascot] = [:]
+    private var activePanels: [String: RenderedPet] = [:]
     
     private var logicalBlocks: [String: FlaggedBlock] = [:]
-    private var logicalStates: [String: MascotState] = [:]
+    private var logicalStates: [String: PetState] = [:]
     private var hoverStates: [String: Bool] = [:]
-    private var previousUIState: [String: MascotUIState] = [:]
+    private var previousUIState: [String: PetUIState] = [:]
     /// Per-block commentary dismissal level. A first click soft-dismisses
     /// (level 1): hidden for now, but allowed back when the verdict (or pet)
     /// changes. A SECOND click — or a double-click the first time — hard-dismisses
@@ -101,7 +101,7 @@ final class MascotCoordinator {
     /// history and persists across verdict changes (so the next click escalates);
     /// `softSuppressed` is the level-1 "hidden right now" flag, which a verdict/pet
     /// change clears so a fresh line can resurface. Both are forgotten when the
-    /// mascot leaves (block unflagged).
+    /// pet leaves (block unflagged).
     private var dismissLevel: [String: Int] = [:]
     private var softSuppressed: Set<String> = []
 
@@ -111,11 +111,11 @@ final class MascotCoordinator {
     /// Debug builds append "· 0.87 high" to speech lines.
     var debugMode = false
 
-    /// Current mascot edge length in points, driven by the menu bar size slider
-    /// via `setMascotSize`. Defaults to PetPanel.defaultSize until the setting is
+    /// Current pet edge length in points, driven by the menu bar size slider
+    /// via `setPetSize`. Defaults to PetPanel.defaultSize until the setting is
     /// pushed in at launch.
-    private(set) var mascotSize: CGFloat = PetPanel.defaultSize.width
-    private var mascotPanelSize: NSSize { NSSize(width: mascotSize, height: mascotSize) }
+    private(set) var petSize: CGFloat = PetPanel.defaultSize.width
+    private var petPanelSize: NSSize { NSSize(width: petSize, height: petSize) }
 
     private var globalMouseMonitor: Any?
     private var localMouseMonitor: Any?
@@ -193,7 +193,7 @@ final class MascotCoordinator {
                     // Re-showing after a scroll snaps the art back to its resting
                     // peeked-out position. A scroll that overlapped an entrance or
                     // exit left a transform animation mid-flight under alpha 0;
-                    // pinning identity here means a live mascot always reappears
+                    // pinning identity here means a live pet always reappears
                     // fully peeked out — never stuck behind the wall, never popping
                     // mid-slide. (`commitResting` runs instantly via its own
                     // disabled-actions transaction, so the alpha still fades in.)
@@ -227,25 +227,25 @@ final class MascotCoordinator {
         commitUI()
     }
 
-    /// Live-resize every mascot to a new edge length (driven by the size slider).
+    /// Live-resize every pet to a new edge length (driven by the size slider).
     /// Each panel is re-anchored so it stays correctly placed relative to its
     /// line and box; the art fills the resized panel via its autoresizing mask.
-    func setMascotSize(_ newSize: CGFloat) {
-        let lo = CGFloat(SettingsManager.mascotSizeRange.lowerBound)
-        let hi = CGFloat(SettingsManager.mascotSizeRange.upperBound)
+    func setPetSize(_ newSize: CGFloat) {
+        let lo = CGFloat(SettingsManager.petSizeRange.lowerBound)
+        let hi = CGFloat(SettingsManager.petSizeRange.upperBound)
         let clamped = max(lo, min(hi, newSize))
-        guard abs(clamped - mascotSize) > 0.5 else { return }
-        mascotSize = clamped
+        guard abs(clamped - petSize) > 0.5 else { return }
+        petSize = clamped
         for (id, rendered) in activePanels {
             let origin = anchorOrigin(forBlockID: id)
-            rendered.panel.setFrame(NSRect(origin: origin, size: mascotPanelSize), display: true)
+            rendered.panel.setFrame(NSRect(origin: origin, size: petPanelSize), display: true)
             repositionBubble(for: id)
         }
     }
 
     // MARK: - Election
 
-    /// Deterministic choice of which blocks get a mascot when a page flags
+    /// Deterministic choice of which blocks get a pet when a page flags
     /// more than `maxInstances`: score descending, then id ascending — the
     /// same page always elects the same blocks.
     static func electedBlocks(_ blocks: [FlaggedBlock]) -> [String: FlaggedBlock] {
@@ -263,34 +263,34 @@ final class MascotCoordinator {
     // MARK: - Centralized UI Rendering
 
     private func commitUI() {
-        var nextUIState: [String: MascotUIState] = [:]
+        var nextUIState: [String: PetUIState] = [:]
         let petID = registry.activePet?.id ?? "none"
 
         for (id, state) in logicalStates {
             guard let block = logicalBlocks[id] else { continue }
             let hovered = hoverStates[id] ?? false
-            nextUIState[id] = MascotUIState(state: state, blockRect: block.rect, blockState: block.state, petID: petID, isHovered: hovered, words: block.words)
+            nextUIState[id] = PetUIState(state: state, blockRect: block.rect, blockState: block.state, petID: petID, isHovered: hovered, words: block.words)
         }
 
         applyDiff(previous: previousUIState, next: nextUIState)
         previousUIState = nextUIState
     }
 
-    private func getOrCreateRendered(id: String) -> RenderedMascot {
+    private func getOrCreateRendered(id: String) -> RenderedPet {
         if let existing = activePanels[id] { return existing }
-        let panel = PetPanel(size: mascotPanelSize)
+        let panel = PetPanel(size: petPanelSize)
         let bubble = SpeechBubblePanel()
 
-        let rendered = RenderedMascot(panel: panel, bubble: bubble)
+        let rendered = RenderedPet(panel: panel, bubble: bubble)
         activePanels[id] = rendered
         return rendered
     }
 
-    private func applyDiff(previous: [String: MascotUIState], next: [String: MascotUIState]) {
+    private func applyDiff(previous: [String: PetUIState], next: [String: PetUIState]) {
         // Exits
         for (id, prev) in previous where next[id] == nil || next[id]?.state == .idle {
             if prev.state != .idle {
-                exitMascot(id: id)
+                exitPet(id: id)
             }
         }
 
@@ -302,7 +302,7 @@ final class MascotCoordinator {
 
             if prev == nil || prev?.state == .idle {
                 if curr.state == .entering {
-                    enterMascot(id: id, state: curr)
+                    enterPet(id: id, state: curr)
                 } else if curr.state == .attached {
                     // Revived from idle: park behind the line and peek back out,
                     // the same wall-emerge as a fresh entrance.
@@ -330,7 +330,7 @@ final class MascotCoordinator {
             }
 
             // Hover state updates. The commentary bubble appears ONLY while the
-            // block / bracket / mascot is hovered, and retires the moment the
+            // block / bracket / pet is hovered, and retires the moment the
             // pointer leaves. Never by default — and never while the reader has
             // click-dismissed it (revealBubble honors dismissLevel/softSuppressed).
             if prev?.isHovered != curr.isHovered {
@@ -344,11 +344,11 @@ final class MascotCoordinator {
         }
     }
 
-    private func enterMascot(id: String, state: MascotUIState) {
+    private func enterPet(id: String, state: PetUIState) {
         let rendered = getOrCreateRendered(id: id)
         let origin = anchorOrigin(forBlockID: id)
 
-        rendered.panel.setFrame(NSRect(origin: origin, size: mascotPanelSize), display: false)
+        rendered.panel.setFrame(NSRect(origin: origin, size: petPanelSize), display: false)
         rendered.panel.alphaValue = 0
         rendered.panel.contentView?.wantsLayer = true
         // Start fully hidden BEHIND the line. The panel's right edge sits exactly
@@ -363,7 +363,7 @@ final class MascotCoordinator {
 
         mountGIF(for: state.blockState, on: rendered.panel, force: true)
         // No commentary by default — the bubble appears only on hover (see
-        // handleMouseMove / applyDiff). The mascot peeks out silently.
+        // handleMouseMove / applyDiff). The pet peeks out silently.
 
         // The entrance runs in two scheduled stages, and `transitionWorkItems[id]`
         // always holds the CURRENTLY pending one — so a single
@@ -403,7 +403,7 @@ final class MascotCoordinator {
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.barSettleDelay, execute: emerge)
     }
 
-    private func exitMascot(id: String) {
+    private func exitPet(id: String) {
         guard let rendered = activePanels[id] else { return }
         rendered.bubble.hideNow()
         transitionWorkItems[id]?.cancel()
@@ -430,16 +430,16 @@ final class MascotCoordinator {
             // Duck straight back behind the line — the exact reverse of the
             // peek-out entrance (slide right, no vertical move).
             rendered.panel.imageView.animator().layer?.transform =
-                Self.behindWallTransform(width: mascotSize)
+                Self.behindWallTransform(width: petSize)
         })
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
     }
     
     private func handleMouseMove(_ location: NSPoint) {
         for (id, rendered) in activePanels {
-            // Hover trigger is ONLY the mascot and its open bubble — NOT the
+            // Hover trigger is ONLY the pet and its open bubble — NOT the
             // highlighted text block. The commentary appears when the pointer is on
-            // the mascot, and stays up while the pointer travels between the mascot
+            // the pet, and stays up while the pointer travels between the pet
             // and the bubble. Hovering the flagged text itself does nothing.
             let isInsidePet = rendered.panel.frame.contains(location)
             let isInsideBubble = rendered.bubble.isVisible && rendered.bubble.frame.contains(location)
@@ -458,7 +458,7 @@ final class MascotCoordinator {
     /// The exact one-liner the bubble would show for this block — DETERMINISTIC:
     /// the pet's speech template (plus the debug score suffix when debug mode is
     /// on), with a non-empty fallback. Shared by `revealBubble` (what is shown)
-    /// and `speechCardHeight` (so the mascot can predict the box's height and sit
+    /// and `speechCardHeight` (so the pet can predict the box's height and sit
     /// snug below it before the box is ever shown).
     private func speechLine(for id: String) -> String {
         guard let block = logicalBlocks[id] else { return "..." }
@@ -479,7 +479,7 @@ final class MascotCoordinator {
         return "..." // Fallback so there's always a surface to show
     }
 
-    /// Rendered height of the text box for this block's line — lets the mascot
+    /// Rendered height of the text box for this block's line — lets the pet
     /// dynamically sit just below the box without waiting for it to be shown.
     ///
     /// Memoized by the line TEXT: `cardSize` depends only on the string (the font
@@ -499,7 +499,7 @@ final class MascotCoordinator {
     private func revealBubble(for id: String) {
         // Respect a click-dismissal. A hard dismissal (level 2) stays gone for
         // good; a soft one (softSuppressed) stays gone until the verdict/pet
-        // changes or the mascot is recreated.
+        // changes or the pet is recreated.
         guard dismissLevel[id] != 2, !softSuppressed.contains(id) else { return }
         guard let rendered = activePanels[id], logicalBlocks[id] != nil else { return }
         rendered.bubble.show(speechLine(for: id))
@@ -539,29 +539,29 @@ final class MascotCoordinator {
             rendered.bubble.fadeOut()       // idempotent if already fading/hidden
         }
 
-        // Mascot clicks pass straight through (the panel is click-through), but
+        // Pet clicks pass straight through (the panel is click-through), but
         // we still detect them so a future click-reaction animation can hook in.
         for (id, rendered) in activePanels where rendered.panel.alphaValue > 0.01 {
             if rendered.panel.frame.contains(location) {
-                handleMascotClick(id: id, clickCount: clickCount)
+                handlePetClick(id: id, clickCount: clickCount)
             }
         }
     }
 
-    /// A pass-through click landed on the mascot. Clicking the mascot does
+    /// A pass-through click landed on the pet. Clicking the pet does
     /// nothing today — there is intentionally nothing to "open" — but the click
     /// IS observed here (the panel itself stays `ignoresMouseEvents = true`, so
     /// the click still reaches the content below). This is the hook for a future
     /// click-reaction animation (e.g. a wiggle/wave on poke); wire it in here.
-    private func handleMascotClick(id: String, clickCount: Int) {
-        // TODO(future): trigger a mascot click-reaction animation for `id`.
+    private func handlePetClick(id: String, clickCount: Int) {
+        // TODO(future): trigger a pet click-reaction animation for `id`.
     }
 
     // MARK: - GIF resolution
 
     /// state → which animation-profile slot → which gif key. Flag-state
-    /// mascots only ever track or alert; idle/fallback don't exist here
-    /// because a mascot without a flagged block doesn't exist either.
+    /// pets only ever track or alert; idle/fallback don't exist here
+    /// because a pet without a flagged block doesn't exist either.
     private func gifKey(for state: DetectionState) -> String {
         guard let profile = registry.activePet?.animationProfile else { return "idle" }
         switch state {
@@ -590,7 +590,7 @@ final class MascotCoordinator {
     // MARK: - Wall-peek animation
 
     /// The transform that hides the art entirely behind the bracket line. The
-    /// mascot panel's right edge is welded to the bar (anchorOrigin), so shoving
+    /// pet panel's right edge is welded to the bar (anchorOrigin), so shoving
     /// the art one full panel-width to the right pushes every pixel past that
     /// edge; the panel's `masksToBounds` clipping container (PetPanel) then clips
     /// everything past the right edge, so the line's x acts as a solid wall the
@@ -605,12 +605,12 @@ final class MascotCoordinator {
     /// imageView, which the panel's clipping container hides past the line edge.
     /// Any in-flight transform animation (a still-running exit/peek) is removed
     /// first so it can't keep driving the presentation after this reset.
-    private func parkBehindWall(_ rendered: RenderedMascot) {
+    private func parkBehindWall(_ rendered: RenderedPet) {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         rendered.panel.imageView.layer?.removeAnimation(forKey: "transform")
         rendered.panel.imageView.layer?.transform =
-            Self.behindWallTransform(width: mascotSize)
+            Self.behindWallTransform(width: petSize)
         CATransaction.commit()
     }
 
@@ -618,11 +618,11 @@ final class MascotCoordinator {
     /// identity) with NO animation — the authoritative "attached & at rest"
     /// commit. Removing any in-flight transform animation first and setting the
     /// model under a disabled-actions transaction guarantees that whenever a
-    /// mascot is settled, its transform is exactly identity, regardless of how an
+    /// pet is settled, its transform is exactly identity, regardless of how an
     /// interrupted entrance/exit/scroll left the animation. Called at the attach
     /// step and on scroll re-show, so the pet can never be left stuck behind the
     /// wall (invisible) while logically present.
-    private func commitResting(_ rendered: RenderedMascot) {
+    private func commitResting(_ rendered: RenderedPet) {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         rendered.panel.imageView.layer?.removeAnimation(forKey: "transform")
@@ -639,7 +639,7 @@ final class MascotCoordinator {
     /// edge alone do the reveal makes the pet emerge solid — like a real object
     /// coming out from behind the line, not a translucent fade-in. The only
     /// alpha case that matters is the scroll-hide (0), honored here.
-    private func peekOut(_ rendered: RenderedMascot, duration: TimeInterval) {
+    private func peekOut(_ rendered: RenderedPet, duration: TimeInterval) {
         rendered.panel.alphaValue = self.scrolling ? 0.0 : Self.restAlpha
         NSAnimationContext.runAnimationGroup { context in
             context.duration = duration
@@ -650,34 +650,34 @@ final class MascotCoordinator {
 
     // MARK: - Positioning (same anchor math the single pet used)
 
-    /// Where the text box + mascot cluster sits, in priority order:
+    /// Where the text box + pet cluster sits, in priority order:
     ///   .sideBySide — preferred: a horizontal ROW to the LEFT of the bar —
-    ///                 [box] [mascot] |line|. Used whenever the box AND mascot
+    ///                 [box] [pet] |line|. Used whenever the box AND pet
     ///                 both fit side-by-side left of the bar.
     ///   .left       — not enough width for the row, but room for the box alone:
     ///                 stack to the LEFT of the bar, box's top on the bar top,
-    ///                 mascot underneath it.
+    ///                 pet underneath it.
     ///   .below      — bar too far left for either → drop BELOW the line, left edge
-    ///                 ON the bar (nothing left of the line). Mascot just below the
-    ///                 line, box UNDER the mascot.
+    ///                 ON the bar (nothing left of the line). Pet just below the
+    ///                 line, box UNDER the pet.
     ///   .above      — also no room below (bar low + left) → rise ABOVE the line,
-    ///                 left edge ON the bar. Mascot just above the line, box above it.
-    /// The always-visible mascot stays nearest the line; the hover-only box sits on
-    /// its far side, so the mascot's position never depends on whether the box shows.
+    ///                 left edge ON the bar. Pet just above the line, box above it.
+    /// The always-visible pet stays nearest the line; the hover-only box sits on
+    /// its far side, so the pet's position never depends on whether the box shows.
     private enum Placement { case sideBySide, left, below, above }
 
     /// Which placement to use, from geometry + the (predicted) box height so the
-    /// mascot and its box always agree.
+    /// pet and its box always agree.
     private func placement(rect: CGRect, words: Int, boxHeight: CGFloat, vf: CGRect) -> Placement {
         let barX = HighlightPanel.barX(textMinX: rect.minX)
-        // 1. Side-by-side row: room for [box][gap][mascot] all LEFT of the bar.
-        if barX - mascotSize - Self.sideBoxGap - Self.assumedBoxWidth >= vf.minX { return .sideBySide }
+        // 1. Side-by-side row: room for [box][gap][pet] all LEFT of the bar.
+        if barX - petSize - Self.sideBoxGap - Self.assumedBoxWidth >= vf.minX { return .sideBySide }
         // 2. Vertical stack: room for just the box (the wider element) left of the bar.
         if barX - Self.assumedBoxWidth >= vf.minX { return .left }
-        // 3/4. Too far left → below the line if the stacked mascot+box clears the
+        // 3/4. Too far left → below the line if the stacked pet+box clears the
         // screen bottom, otherwise above it.
         let lineBottom = rect.maxY - HighlightPanel.drawnLineHeight(rectHeight: rect.height, words: words)
-        let stackHeight = Self.clusterGap + mascotSize + Self.clusterGap + boxHeight
+        let stackHeight = Self.clusterGap + petSize + Self.clusterGap + boxHeight
         return (lineBottom - stackHeight >= vf.minY) ? .below : .above
     }
 
@@ -688,18 +688,18 @@ final class MascotCoordinator {
         min(max(y, vf.minY), vf.maxY - height)
     }
 
-    /// Origin (bottom-left) of the mascot panel for a block, always fully
+    /// Origin (bottom-left) of the pet panel for a block, always fully
     /// on-screen. Looks the block up and uses its DETERMINISTIC box height, so
-    /// the mascot sits dynamically just below the box (and the result is stable
+    /// the pet sits dynamically just below the box (and the result is stable
     /// whether or not the hover-only box is currently shown).
     private func anchorOrigin(forBlockID id: String) -> CGPoint {
         guard let block = logicalBlocks[id] else { return .zero }
         return anchorOrigin(rect: block.rect, words: block.words, boxHeight: speechCardHeight(for: id))
     }
 
-    /// Origin (bottom-left) of the mascot panel, always fully on-screen.
+    /// Origin (bottom-left) of the pet panel, always fully on-screen.
     private func anchorOrigin(rect: CGRect, words: Int, boxHeight: CGFloat) -> CGPoint {
-        let size = mascotPanelSize
+        let size = petPanelSize
         let vf = currentScreen(for: rect).visibleFrame
         let barX = HighlightPanel.barX(textMinX: rect.minX)
         let lineTop = rect.maxY
@@ -708,27 +708,27 @@ final class MascotCoordinator {
 
         switch placement(rect: rect, words: words, boxHeight: boxHeight, vf: vf) {
         case .sideBySide:
-            // A row to the left of the bar: mascot's right edge on the bar, top
+            // A row to the left of the bar: pet's right edge on the bar, top
             // aligned with the bar top. The box sits to its LEFT (repositionBubble),
-            // so the mascot's position is independent of the box height.
+            // so the pet's position is independent of the box height.
             let x = clampX(barX - size.width, width: size.width, in: vf)
             let y = clampY(lineTop - size.height, height: size.height, in: vf)
             return CGPoint(x: x, y: y)
         case .left:
             // Left of the bar (right edge on it). The box's top is pinned to the
-            // bar top and grows DOWN; the mascot sits dynamically one gap below the
+            // bar top and grows DOWN; the pet sits dynamically one gap below the
             // box's bottom (so the spacing is exact for a 1-line or a 2-line quip).
             let x = clampX(barX - size.width, width: size.width, in: vf)
             let y = clampY(lineTop - boxHeight - g - size.height, height: size.height, in: vf)
             return CGPoint(x: x, y: y)
         case .below:
-            // Below the line, left edge ON the bar. The always-visible mascot sits
+            // Below the line, left edge ON the bar. The always-visible pet sits
             // just below the line; the hover box drops UNDERNEATH it.
             let x = clampX(barX, width: size.width, in: vf)
             let y = clampY(lineBottom - g - size.height, height: size.height, in: vf)
             return CGPoint(x: x, y: y)
         case .above:
-            // Above the line, left edge ON the bar; mascot just above the line,
+            // Above the line, left edge ON the bar; pet just above the line,
             // box stacked above it.
             let x = clampX(barX, width: size.width, in: vf)
             let y = clampY(lineTop + g, height: size.height, in: vf)
@@ -750,7 +750,7 @@ final class MascotCoordinator {
     /// lockstep. Tiny deltas snap — sub-2pt moves would just be jitter.
     private func animatePanel(_ panel: PetPanel, to origin: CGPoint, blockID: String) {
         let current = panel.frame.origin
-        let target = NSRect(origin: origin, size: mascotPanelSize)
+        let target = NSRect(origin: origin, size: petPanelSize)
         if abs(current.x - origin.x) < Self.moveDeadband,
            abs(current.y - origin.y) < Self.moveDeadband {
             panel.setFrame(target, display: false)
@@ -767,7 +767,7 @@ final class MascotCoordinator {
         repositionBubble(for: blockID, petFrame: target)
     }
 
-    /// The text box sits on the mascot's FAR side from the line, per placement:
+    /// The text box sits on the pet's FAR side from the line, per placement:
     /// to its LEFT in `.sideBySide`, ABOVE it in `.left`/`.above`, UNDER it in
     /// `.below`. Clamped fully on-screen. The box window carries `blur` points of
     /// invisible margin on every side, so the window origin is the visible-card
@@ -783,26 +783,26 @@ final class MascotCoordinator {
         let cardH = winSize.height - blur * 2
         let g = Self.clusterGap
 
-        // Anchor to the mascot's live target while gliding, else its resting origin.
-        let mascotOrigin = petFrame?.origin ?? anchorOrigin(forBlockID: blockID)
-        let mascotFrame = NSRect(origin: mascotOrigin, size: mascotPanelSize)
+        // Anchor to the pet's live target while gliding, else its resting origin.
+        let petOrigin = petFrame?.origin ?? anchorOrigin(forBlockID: blockID)
+        let petFrame = NSRect(origin: petOrigin, size: petPanelSize)
         let lineTop = block.rect.maxY
 
         let cardLeft: CGFloat
         let cardTop: CGFloat   // y of the visible card's TOP edge
         switch placement(rect: block.rect, words: block.words, boxHeight: cardH, vf: vf) {
         case .sideBySide:
-            cardLeft = mascotFrame.minX - Self.sideBoxGap - cardW  // snug to the LEFT of the mascot
+            cardLeft = petFrame.minX - Self.sideBoxGap - cardW  // snug to the LEFT of the pet
             cardTop = lineTop                             // top aligned with the bar top
         case .left:
-            cardLeft = mascotFrame.maxX - cardW - Self.boxLineSpacing  // spaced a little off the bar
-            cardTop = lineTop                            // top on the bar top; grows down, mascot sits below
+            cardLeft = petFrame.maxX - cardW - Self.boxLineSpacing  // spaced a little off the bar
+            cardTop = lineTop                            // top on the bar top; grows down, pet sits below
         case .below:
-            cardLeft = mascotFrame.minX                  // left edge on the bar (== mascot left edge)
-            cardTop = mascotFrame.minY - g               // box drops one gap UNDER the mascot
+            cardLeft = petFrame.minX                  // left edge on the bar (== pet left edge)
+            cardTop = petFrame.minY - g               // box drops one gap UNDER the pet
         case .above:
-            cardLeft = mascotFrame.minX                  // left edge on the bar
-            cardTop = mascotFrame.maxY + g + cardH       // stacked directly above the mascot
+            cardLeft = petFrame.minX                  // left edge on the bar
+            cardTop = petFrame.maxY + g + cardH       // stacked directly above the pet
         }
 
         let x = clampX(cardLeft, width: cardW, in: vf)

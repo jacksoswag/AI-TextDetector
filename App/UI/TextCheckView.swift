@@ -4,7 +4,7 @@ import FilterCore
 /// The manual check window: paste any text, get a human-vs-AI verdict with a
 /// confidence percentage. Deliberately spare — one input, one button, one
 /// verdict — and deliberately ungated (see `DetectionEngine.analyze`), because
-/// here the user asked for a call and always gets one. The active mascot reacts
+/// here the user asked for a call and always gets one. The active pet reacts
 /// beside the result so it appears without taking the surface over.
 struct TextCheckView: View {
     let engine: DetectionEngine
@@ -82,7 +82,7 @@ struct TextCheckView: View {
                     petID: pet.id,
                     stateKey: DetectionState(score: p).rawValue,
                     templates: pet.speechTemplates)
-                verdict = CheckVerdict(aiProbability: p, mascotLine: line)
+                verdict = CheckVerdict(aiProbability: p, petLine: line)
             }
         }
     }
@@ -93,7 +93,7 @@ struct TextCheckView: View {
 /// "human" and "AI" both read as a positive call rather than a probability.
 private struct CheckVerdict {
     let aiProbability: Double
-    let mascotLine: String?
+    let petLine: String?
 
     var isAI: Bool { aiProbability >= 0.5 }
     var certainty: Int { Int(((isAI ? aiProbability : 1 - aiProbability) * 100).rounded()) }
@@ -108,7 +108,7 @@ private struct ResultRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             // "none" carries a 1×1 transparent placeholder — skip it so an absent
-            // mascot stays truly absent rather than a blank square.
+            // pet stays truly absent rather than a blank square.
             if pet.id != "none",
                let data = pet.assets.basePNGData(), let image = NSImage(data: data) {
                 Image(nsImage: image)
@@ -130,7 +130,7 @@ private struct ResultRow: View {
                 }
                 ProgressView(value: Double(verdict.certainty), total: 100)
                     .tint(verdict.tint)
-                if let line = verdict.mascotLine {
+                if let line = verdict.petLine {
                     Text(line)
                         .font(.caption)
                         .foregroundStyle(.secondary)

@@ -219,7 +219,7 @@ private struct SpeechLineEditor: View {
             }
             ForEach(lines.indices, id: \.self) { index in
                 HStack {
-                    TextField("What the mascot says…", text: $lines[index])
+                    TextField("What the pet says…", text: $lines[index])
                         .textFieldStyle(.roundedBorder)
                     Button {
                         lines.remove(at: index)

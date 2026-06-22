@@ -15,8 +15,8 @@ public enum SettingsKey {
     public static let minWords = "settings.minWords"            // Int
     public static let nativeScanning = "settings.nativeScanning"
     public static let launchAtLoginDone = "settings.launchAtLoginRegistered"
-    /// On-screen mascot edge length in points. Double, clamped to mascotSizeRange.
-    public static let mascotSize = "settings.mascotSize"
+    /// On-screen pet edge length in points. Double, clamped to petSizeRange.
+    public static let petSize = "settings.petSize"
 }
 
 /// Slider band labels, named for the lowest `DetectionState` that still gets
@@ -65,10 +65,10 @@ public final class SettingsManager: ObservableObject {
     /// are painted only when Stage-1 is decisively AI (see DetectionEngine's
     /// confidence gate), so a short formal-human block abstains instead of flagging.
     public static let defaultMinWords = 30
-    /// Mascot edge length in points. The default (43) sits at ~1/3 of the
+    /// Pet edge length in points. The default (43) sits at ~1/3 of the
     /// slider's range, so the slider reads as "a bit small by default, room to grow".
-    public static let defaultMascotSize = 43.0
-    public static let mascotSizeRange: ClosedRange<Double> = 20...90
+    public static let defaultPetSize = 43.0
+    public static let petSizeRange: ClosedRange<Double> = 20...90
 
     private let defaults: UserDefaults
 
@@ -93,12 +93,12 @@ public final class SettingsManager: ObservableObject {
         didSet { defaults.set(nativeScanningEnabled, forKey: SettingsKey.nativeScanning) }
     }
 
-    /// On-screen mascot edge length in points (square). Adjusted by the slider in
-    /// the menu bar's Mascot tab; read by the mascot layer to size/resize panels.
-    @Published public var mascotSize: Double {
+    /// On-screen pet edge length in points (square). Adjusted by the slider in
+    /// the menu bar's Pet tab; read by the pet layer to size/resize panels.
+    @Published public var petSize: Double {
         didSet {
-            defaults.set(clamp(mascotSize, Self.mascotSizeRange.lowerBound, Self.mascotSizeRange.upperBound),
-                         forKey: SettingsKey.mascotSize)
+            defaults.set(clamp(petSize, Self.petSizeRange.lowerBound, Self.petSizeRange.upperBound),
+                         forKey: SettingsKey.petSize)
         }
     }
 
@@ -112,8 +112,8 @@ public final class SettingsManager: ObservableObject {
         self.threshold = clamp(defaults.double(forKey: SettingsKey.thresholdV2), 0.30, 0.95)
         self.minWords = max(30, defaults.integer(forKey: SettingsKey.minWords))
         self.nativeScanningEnabled = defaults.bool(forKey: SettingsKey.nativeScanning)
-        self.mascotSize = clamp(defaults.double(forKey: SettingsKey.mascotSize),
-                                Self.mascotSizeRange.lowerBound, Self.mascotSizeRange.upperBound)
+        self.petSize = clamp(defaults.double(forKey: SettingsKey.petSize),
+                                Self.petSizeRange.lowerBound, Self.petSizeRange.upperBound)
     }
 
     static func registerDefaults(_ defaults: UserDefaults) {
@@ -122,7 +122,7 @@ public final class SettingsManager: ObservableObject {
             SettingsKey.thresholdV2: defaultThreshold,
             SettingsKey.minWords: defaultMinWords,
             SettingsKey.nativeScanning: true,   // everything is automatic by default
-            SettingsKey.mascotSize: defaultMascotSize,
+            SettingsKey.petSize: defaultPetSize,
         ])
     }
 }

@@ -10,7 +10,7 @@ wrong accusation is worse than a missed one.
 ## Screenshots
 
 ![Veritas highlighting a flagged paragraph in a browser](docs/assets/screenshot-overlay.png)
-*A flagged block gets a colored outline; the mascot comments only on hover.*
+*A flagged block gets a colored outline; the pet comments only on hover.*
 
 ![The Veritas menu-bar menu](docs/assets/screenshot-menu.png)
 *One master switch, a threshold slider, and a trusted-sites list. No scan button.*
@@ -47,8 +47,9 @@ wrong accusation is worse than a missed one.
 
 **Display**
 - Colored highlight overlays (yellow, orange, red) by confidence.
-- A pixel-art mascot beside each flagged block, with a one-line comment on hover.
-  Four built-in personalities, plus a custom mascot editor that exports to JSON.
+- A pixel-art pet beside each flagged block, with a one-line comment on hover.
+  Two built-in pets (Mochi and Brill), plus a custom pet editor that exports to
+  JSON. You can also turn pets off entirely.
 - Debug Mode shows each block's raw score.
 
 **Coverage and control**

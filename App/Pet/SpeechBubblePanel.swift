@@ -1,17 +1,17 @@
 import AppKit
 
-/// A mascot's word balloon — a second floating panel showing the mascot's
-/// one-line commentary on its block. Like the mascot and the highlight bracket,
+/// A pet's word balloon — a second floating panel showing the pet's
+/// one-line commentary on its block. Like the pet and the highlight bracket,
 /// it is PURE annotation and never intercepts input: the panel is fully
 /// click-through (`ignoresMouseEvents = true`), so every click and scroll lands
 /// on the content underneath. Nothing here is clickable — the only interaction
-/// is dismissal, and even that is driven from the outside: MascotCoordinator's
+/// is dismissal, and even that is driven from the outside: PetCoordinator's
 /// global mouse monitor notices a pass-through click that fell on a visible
 /// bubble and calls `fadeOut()` (the click still reaches the app below).
 ///
 /// The bubble auto-dismisses on a fixed one-shot timer (spec §6.1):
 /// deterministic, no per-frame work — a single `DispatchWorkItem` that a fresh
-/// line cancels and replaces. While the block / mascot / bubble is hovered the
+/// line cancels and replaces. While the block / pet / bubble is hovered the
 /// timer is parked (`isGloballyHovered`) so the commentary doesn't vanish out
 /// from under the reader; leaving re-arms it. Dark translucent background so
 /// 11.5pt white text stays readable over any desktop.
@@ -44,7 +44,7 @@ final class SpeechBubblePanel: NSPanel {
         level = .floating
         // Pure annotation: every click and scroll belongs to the content
         // underneath. The bubble carries nothing to click; the coordinator
-        // fades it on a pass-through click (see MascotCoordinator.handleMouseDown).
+        // fades it on a pass-through click (see PetCoordinator.handleMouseDown).
         ignoresMouseEvents = true
         isOpaque = false
         backgroundColor = .clear
@@ -71,8 +71,8 @@ final class SpeechBubblePanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
-    /// Tracked by MascotCoordinator so the dismiss timer parks while the
-    /// block / mascot / bubble is hovered.
+    /// Tracked by PetCoordinator so the dismiss timer parks while the
+    /// block / pet / bubble is hovered.
     var isGloballyHovered: Bool = false {
         didSet {
             if isGloballyHovered {
@@ -111,8 +111,8 @@ final class SpeechBubblePanel: NSPanel {
     }
 
     /// Cancel any pending dismiss and hide IMMEDIATELY (no fade). Used when the
-    /// mascot itself is being removed (fly-out) or a scroll burst starts, so a
-    /// stale bubble can't outlive its mascot or linger over moving content.
+    /// pet itself is being removed (fly-out) or a scroll burst starts, so a
+    /// stale bubble can't outlive its pet or linger over moving content.
     func hideNow() {
         dismissWorkItem?.cancel()
         dismissWorkItem = nil
@@ -125,7 +125,7 @@ final class SpeechBubblePanel: NSPanel {
     /// Visible-card size (the dark rounded card, WITHOUT the surrounding blur
     /// margin) for a given line — the exact measurement `layout()` applies, so
     /// callers can predict the rendered box size before it is ever shown (the
-    /// mascot uses this to sit dynamically just below the box).
+    /// pet uses this to sit dynamically just below the box).
     static func cardSize(for text: String) -> NSSize {
         let probe = NSTextField(labelWithString: text)
         probe.font = .systemFont(ofSize: 11.5)
@@ -141,7 +141,7 @@ final class SpeechBubblePanel: NSPanel {
     private func layout() {
         // Frame the card around the measured (wrapped) label with even padding,
         // then add the invisible blur margin all round. Shares `cardSize` so the
-        // mascot's prediction of this height stays exactly in sync.
+        // pet's prediction of this height stays exactly in sync.
         let card = Self.cardSize(for: label.stringValue)
         let windowWidth = card.width + Self.blurMargin * 2
         let windowHeight = card.height + Self.blurMargin * 2

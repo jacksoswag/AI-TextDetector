@@ -41,7 +41,7 @@ final class PetWindowsCoordinator: NSObject {
         // import, export) so the coordinator stays the single owner of windows
         // and dialogs — the SwiftUI view never touches AppKit window state.
         let view = PetLibraryView(registry: registry, coordinator: self)
-        let controller = makeWindow(title: "Mascot Library",
+        let controller = makeWindow(title: "Pet Library",
                                     size: NSSize(width: 560, height: 460),
                                     content: view)
         libraryController = controller
@@ -64,14 +64,14 @@ final class PetWindowsCoordinator: NSObject {
         // Reuse the single editor window: replace its content so reopening for
         // a different pet doesn't stack windows.
         if let controller = editorController, let window = controller.window {
-            window.title = pet == nil ? "New Mascot" : "Edit Mascot"
+            window.title = pet == nil ? "New Pet" : "Edit Pet"
             window.contentViewController = NSHostingController(rootView: view)
             controller.showWindow(nil)
             window.makeKeyAndOrderFront(nil)
             return
         }
 
-        let controller = makeWindow(title: pet == nil ? "New Mascot" : "Edit Mascot",
+        let controller = makeWindow(title: pet == nil ? "New Pet" : "Edit Pet",
                                     size: NSSize(width: 540, height: 620),
                                     content: view)
         editorController = controller
@@ -112,7 +112,7 @@ final class PetWindowsCoordinator: NSObject {
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         panel.prompt = "Import"
-        panel.message = "Choose a mascot (.json) to import"
+        panel.message = "Choose a pet (.json) to import"
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
@@ -132,7 +132,7 @@ final class PetWindowsCoordinator: NSObject {
         panel.allowedContentTypes = [.json]
         panel.nameFieldStringValue = "\(name).json"
         panel.prompt = "Export"
-        panel.message = "Save this mascot as a shareable file"
+        panel.message = "Save this pet as a shareable file"
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
@@ -162,7 +162,7 @@ final class PetWindowsCoordinator: NSObject {
     private func confirmImport(_ pet: PetDefinition) {
         let alert = NSAlert()
         alert.messageText = "Imported \"\(pet.name)\""
-        alert.informativeText = "The mascot was added to your library."
+        alert.informativeText = "The pet was added to your library."
         alert.alertStyle = .informational
         alert.addButton(withTitle: "Set Active")
         alert.addButton(withTitle: "Not Now")

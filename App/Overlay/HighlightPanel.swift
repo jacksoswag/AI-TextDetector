@@ -21,7 +21,7 @@ final class HighlightPanel: NSPanel {
     // so the vertical bar clears the first glyph, and the stroke is drawn
     // `bracketStrokeInset` points in from that expanded edge. Both the bar's
     // own path (HighlightView) and everything that anchors to the bar (the
-    // mascot, its commentary box) derive their x from these two constants, so
+    // pet, its commentary box) derive their x from these two constants, so
     // the bar can be retuned in one place without anything drifting off it.
 
     /// Points the bracket panel extends to the left of the text block.
@@ -36,7 +36,7 @@ final class HighlightPanel: NSPanel {
 
     /// The vertical extent the bracket line is actually DRAWN at — the single
     /// source of truth shared by the stroke (HighlightView) and everything that
-    /// must sit inside the line (the mascot, which may never fall below the
+    /// must sit inside the line (the pet, which may never fall below the
     /// line's bottom). Trust the measured rect for normal paragraphs, and clamp
     /// only absurdly tall container rects to a word-count estimate so a
     /// screen-tall AXTextArea (VS Code / Google Docs) doesn't produce a
@@ -251,7 +251,7 @@ final class HighlightView: NSView {
         let r:   CGFloat = 4                            // corner radius
         let lx:  CGFloat = HighlightPanel.bracketStrokeInset  // x of the vertical stroke
 
-        // Shared with the mascot's anchor math so the pet sits inside the line
+        // Shared with the pet's anchor math so the pet sits inside the line
         // the reader actually sees (HighlightPanel.drawnLineHeight).
         let h = HighlightPanel.drawnLineHeight(rectHeight: bounds.height, words: words)
 
@@ -272,7 +272,7 @@ final class HighlightView: NSView {
     func apply(state: DetectionState, words: Int) {
         self.words = words
         let style = Self.style(for: state)
-        // Bracket line drawn at 0.60 (the mascot rests at 0.80, set separately).
+        // Bracket line drawn at 0.60 (the pet rests at 0.80, set separately).
         let cg = style.color.withAlphaComponent(0.60).cgColor
         bracketLayer.strokeColor = cg
         bracketLayer.shadowColor = NSColor.black.cgColor

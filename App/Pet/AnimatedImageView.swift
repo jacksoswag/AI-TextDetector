@@ -14,7 +14,7 @@ final class AnimatedImageView: NSImageView {
 
     /// Identifier of whatever animation is currently mounted (e.g. the resolved
     /// gif dictionary key, or nil for a static PNG). The coordinator swaps
-    /// images only when this changes — see `MascotCoordinator.mountGIF`.
+    /// images only when this changes — see `PetCoordinator.mountGIF`.
     private(set) var currentGIFKey: String?
 
     override init(frame frameRect: NSRect) {
