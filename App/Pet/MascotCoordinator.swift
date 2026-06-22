@@ -465,7 +465,7 @@ final class MascotCoordinator {
         let pet = registry.activePet
         var line = PetSpeechEngine.line(
             blockID: id,
-            petID: pet?.id ?? "scout",
+            petID: pet?.id ?? "none",
             stateKey: block.state.rawValue,
             templates: pet?.speechTemplates ?? [:]
         )
