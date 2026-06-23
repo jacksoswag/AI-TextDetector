@@ -11,7 +11,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 IDENTITY="AICF Local Dev Signing"
-APP="/Applications/Veritas.app"
+APP="/Applications/Pilcrow.app"
 
 if ! security find-identity -v -p codesigning | grep -q "$IDENTITY"; then
   echo "Signing identity '$IDENTITY' not found in the keychain."
@@ -30,11 +30,11 @@ xcodebuild -project AIContentFilter.xcodeproj -scheme AIContentFilter \
   SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) OWNER_BUILD' build >/dev/null
 
 echo "Installing to ${APP}…"
-pkill -x Veritas 2>/dev/null || true
+pkill -x Pilcrow 2>/dev/null || true
 pkill -x AIContentFilter 2>/dev/null || true   # stop any pre-rename build
 sleep 1
 rm -rf "$APP" /Applications/AIContentFilter.app
-cp -R .build/DerivedData/Build/Products/Release/Veritas.app "$APP"
+cp -R .build/DerivedData/Build/Products/Release/Pilcrow.app "$APP"
 
 echo "Signing in place…"
 codesign --force --deep --options runtime --sign "$IDENTITY" "$APP"

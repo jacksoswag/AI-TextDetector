@@ -18,7 +18,7 @@ struct MenuPanelView: View {
             HeaderSection(settings: manager.settings)
 
             if manager.needsAccessibility {
-                Text("Veritas highlights AI-generated text as you read. Grant Accessibility access to let it watch your screen; nothing it reads leaves this Mac.")
+                Text("Pilcrow highlights AI-generated text as you read. Grant Accessibility access to let it watch your screen; nothing it reads leaves this Mac.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -157,7 +157,7 @@ private struct HeaderSection: View {
             SlashedIcon(systemName: "text.viewfinder", isSlashed: !settings.isEnabled)
                 .font(.title3)
                 .foregroundStyle(settings.isEnabled ? Color.primary : Color.secondary)
-            Text("Veritas").font(.headline)
+            Text("Pilcrow").font(.headline)
             
             Toggle("", isOn: $settings.isEnabled)
                 .labelsHidden()
@@ -562,13 +562,13 @@ private struct LicenseSection: View {
             }
         case .unlicensed:
             VStack(alignment: .leading, spacing: 6) {
-                Label("Veritas is a paid app", systemImage: "lock.fill")
+                Label("Pilcrow is a paid app", systemImage: "lock.fill")
                     .font(.callout.weight(.medium)).foregroundStyle(.orange)
                 Text("Buy once to unlock detection: both watching as you read and the manual Check Text.")
                     .font(.caption2).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack {
-                    Button("Buy Veritas") { manager.openPurchase() }
+                    Button("Buy Pilcrow") { manager.openPurchase() }
                         .controlSize(.small).buttonStyle(.borderedProminent)
                     Button("Enter License") { showEntry = true }.controlSize(.small)
                 }
@@ -629,7 +629,7 @@ private struct AboutFooter: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Text("Veritas v\(version)").font(.caption2).foregroundStyle(.secondary)
+            Text("Pilcrow v\(version)").font(.caption2).foregroundStyle(.secondary)
             Spacer()
             Button("Privacy") { manager.openPrivacyPage() }
                 .buttonStyle(.plain).font(.caption2).foregroundStyle(.secondary)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Sign a Veritas license key with the private key in .secrets/.
+"""Sign a Pilcrow license key with the private key in .secrets/.
 
     python3 scripts/sign-license.py --name "Jane Roe" --email jane@example.com
 
@@ -52,7 +52,7 @@ def main() -> None:
     payload = {
         "name": a.name,
         "email": a.email,
-        "product": "veritas",
+        "product": "pilcrow",
         "issued": a.issued or datetime.date.today().isoformat(),
     }
     body = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()

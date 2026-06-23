@@ -19,7 +19,7 @@ struct AIContentFilterApp: App {
     }
 }
 
-/// The menu-bar glyph. Slashed whenever Veritas is not actively watching: the
+/// The menu-bar glyph. Slashed whenever Pilcrow is not actively watching: the
 /// master switch is off, or no license is active. A paused or unlicensed state
 /// shows at a glance instead of detection just going quiet. Observes both nested
 /// stores directly, since a nested ObservableObject doesn't republish through the
@@ -30,7 +30,7 @@ private struct MenuBarLabel: View {
 
     var body: some View {
         SlashedIcon(systemName: "text.viewfinder", isSlashed: !settings.isEnabled || !license.isActive)
-            .accessibilityLabel("Veritas")
+            .accessibilityLabel("Pilcrow")
     }
 }
 

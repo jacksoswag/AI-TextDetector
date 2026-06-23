@@ -31,7 +31,7 @@ settings:
     # User-facing brand. The Xcode target stays AIContentFilter and the bundle
     # id stays dev.aicf.AIContentFilter; only the .app name and display name
     # carry the brand, so a future rename is a one-line change here.
-    PRODUCT_NAME: Veritas
+    PRODUCT_NAME: Pilcrow
     ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
 
 packages:
@@ -79,7 +79,7 @@ targets:
     info:
       path: App/Info.plist
       properties:
-        CFBundleDisplayName: Veritas
+        CFBundleDisplayName: Pilcrow
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSUIElement: true                       # menu bar only: no Dock icon

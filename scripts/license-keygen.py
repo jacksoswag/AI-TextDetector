@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the Veritas license signing keypair (Ed25519). Run ONCE.
+"""Generate the Pilcrow license signing keypair (Ed25519). Run ONCE.
 
 Writes the PRIVATE key to .secrets/license-private.pem (gitignored). Keep it
 secret: it mints license keys, and the webhook/CLI need it. Prints the PUBLIC

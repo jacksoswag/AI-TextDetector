@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<!-- Veritas is unsandboxed and requests no special entitlements. Accessibility
+<!-- Pilcrow is unsandboxed and requests no special entitlements. Accessibility
      and Screen Recording are TCC permissions granted by the user, not signed
      entitlements. The previously-declared app group (group.dev.aicf.shared) was
      never used in code (UserDefaults.appGroup is .standard) and an unregistered

@@ -1,6 +1,6 @@
-# Third-Party Notices — Veritas
+# Third-Party Notices — Pilcrow
 
-Veritas builds on third-party machine-learning models and the datasets used to
+Pilcrow builds on third-party machine-learning models and the datasets used to
 train them. This file lists those components and their license terms. License
 information was verified on Hugging Face on 2026-06-21.
 

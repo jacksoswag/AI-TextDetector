@@ -1,4 +1,4 @@
-# SwiftFormat — consistent style enforcement for Veritas.
+# SwiftFormat — consistent style enforcement for Pilcrow.
 # Install: brew install swiftformat        Run: swiftformat .
 # Conservative ruleset: matches the existing house style (4-space indent,
 # implicit self, grouped imports) without reflowing intentional long lines.

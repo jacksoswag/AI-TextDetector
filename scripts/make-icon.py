@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the Veritas app icon and build the macOS asset catalog + .icns.
+"""Render the Pilcrow app icon and build the macOS asset catalog + .icns.
 
 Single source of truth for the app icon. The mark is a camera-style viewfinder
 frame around three text lines, the bottom one flagged amber: the app watches
@@ -11,7 +11,7 @@ Outputs:
   Assets/icon-master.png
   Assets/Assets.xcassets/Contents.json
   Assets/Assets.xcassets/AppIcon.appiconset/  (10 sized PNGs + Contents.json)
-  Assets/Veritas.icns                          (Finder / DMG volume icon)
+  Assets/Pilcrow.icns                          (Finder / DMG volume icon)
 """
 import json
 import os
@@ -103,19 +103,19 @@ def build_appiconset(master):
         scale = "2x" if "@2x" in name else "1x"
         images.append({"size": f"{base}x{base}", "idiom": "mac", "filename": name, "scale": scale})
     with open(os.path.join(out, "Contents.json"), "w") as f:
-        json.dump({"images": images, "info": {"version": 1, "author": "veritas"}}, f, indent=2)
+        json.dump({"images": images, "info": {"version": 1, "author": "pilcrow"}}, f, indent=2)
     with open(os.path.join(ASSETS, "Assets.xcassets", "Contents.json"), "w") as f:
-        json.dump({"info": {"version": 1, "author": "veritas"}}, f, indent=2)
+        json.dump({"info": {"version": 1, "author": "pilcrow"}}, f, indent=2)
     return out
 
 
 def build_icns(master):
     with tempfile.TemporaryDirectory() as tmp:
-        iconset = os.path.join(tmp, "Veritas.iconset")
+        iconset = os.path.join(tmp, "Pilcrow.iconset")
         os.makedirs(iconset)
         for px, name in ICONSET:
             master.resize((px, px), Image.LANCZOS).save(os.path.join(iconset, name))
-        icns = os.path.join(ASSETS, "Veritas.icns")
+        icns = os.path.join(ASSETS, "Pilcrow.icns")
         try:
             subprocess.run(["iconutil", "-c", "icns", iconset, "-o", icns], check=True)
             return icns

@@ -122,7 +122,7 @@ public final class LicenseManager: ObservableObject {
               let publicKey = try? Curve25519.Signing.PublicKey(rawRepresentation: pubData),
               publicKey.isValidSignature(signature, for: body),
               let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
-              (json["product"] as? String) == "veritas",
+              (json["product"] as? String) == "pilcrow",
               let name = json["name"] as? String,
               let email = json["email"] as? String
         else { return nil }

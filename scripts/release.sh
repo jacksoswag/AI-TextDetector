@@ -1,7 +1,7 @@
 #!/bin/zsh
-# Build, sign, notarize, staple, and package Veritas into a distributable DMG.
+# Build, sign, notarize, staple, and package Pilcrow into a distributable DMG.
 #
-# This is the direct-distribution release pipeline. Veritas is sold as a
+# This is the direct-distribution release pipeline. Pilcrow is sold as a
 # notarized download (no App Store), so this needs a paid Apple Developer
 # account. Until you have one, the script stops at the first missing piece and
 # prints exactly what to set up. scripts/install.sh stays the local-dev path.
@@ -11,22 +11,22 @@
 #      Accounts, or the developer portal) and note its full name with:
 #        security find-identity -v -p codesigning
 #   2. Store notary credentials in a keychain profile:
-#        xcrun notarytool store-credentials veritas-notary \
+#        xcrun notarytool store-credentials pilcrow-notary \
 #          --apple-id you@example.com --team-id YOUR_TEAM_ID \
 #          --password <app-specific-password>
 #   3. Run:
 #        export DEVELOPER_ID="Developer ID Application: Jackson Adams (YOUR_TEAM_ID)"
-#        export NOTARY_PROFILE="veritas-notary"
+#        export NOTARY_PROFILE="pilcrow-notary"
 #        scripts/release.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-APP_NAME="Veritas"
+APP_NAME="Pilcrow"
 SCHEME="AIContentFilter"
 DERIVED=".build/DerivedData"
 DIST="dist"
 APP="$DIST/$APP_NAME.app"
-ICNS="Assets/Veritas.icns"
+ICNS="Assets/Pilcrow.icns"
 ENTITLEMENTS="App/AIContentFilter.entitlements"
 VERSION=$(grep -m1 'MARKETING_VERSION:' project.yml | sed -E 's/.*"([^"]+)".*/\1/')
 DMG="$DIST/${APP_NAME}-${VERSION}.dmg"
@@ -43,7 +43,7 @@ No Developer ID set. A distributable build needs a Developer ID Application
 certificate, which requires a paid Apple Developer account. To proceed:
 
   export DEVELOPER_ID="Developer ID Application: Jackson Adams (YOUR_TEAM_ID)"
-  export NOTARY_PROFILE="veritas-notary"   # see the header for store-credentials
+  export NOTARY_PROFILE="pilcrow-notary"   # see the header for store-credentials
   scripts/release.sh
 
 See the header of this script and docs/RELEASE.md for the full one-time setup.

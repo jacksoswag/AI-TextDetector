@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the social-share (Open Graph) card for the Veritas website.
+"""Render the social-share (Open Graph) card for the Pilcrow website.
 
 A 1200x630 paper card that mirrors the site masthead: double rule, the name,
 the tagline, a hairline, the dateline, double rule. Ink on warm paper, matching
@@ -22,7 +22,7 @@ PAPER = (243, 239, 228)   # --paper
 INK = (33, 30, 24)        # --ink
 FAINT = (108, 101, 87)    # --faint
 
-NAME = "Veritas"
+NAME = "Pilcrow"
 TAGLINE = "A quiet instrument for honest reading."
 DATELINE = "On your own Mac  ·  macOS 14  ·  Apple Silicon"
 

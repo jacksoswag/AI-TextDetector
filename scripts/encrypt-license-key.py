@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Encrypt the existing Veritas signing key in place. Run ONCE.
+"""Encrypt the existing Pilcrow signing key in place. Run ONCE.
 
 This keeps the SAME keypair: the public key in Brand.swift and every license
 already issued stay valid. It only adds a passphrase to the on-disk PEM so a

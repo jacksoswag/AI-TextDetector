@@ -1,4 +1,4 @@
-# Veritas
+# Pilcrow
 
 A menu bar app for macOS that watches on-screen text, scores how AI-generated it looks, and annotates the suspicious parts: a colored outline and glow around the block, plus a small pixel-art pet that appears beside each flagged block and comments on it. Everything runs on-device. No cloud, no accounts, no telemetry, and no local servers or open ports; nothing the detector reads ever leaves the Mac. (License purchase is handled separately by an external payment processor — see Privacy.)
 
