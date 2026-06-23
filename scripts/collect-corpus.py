@@ -82,8 +82,8 @@ def load_dotenv(path=".env"):
         k, v = line.split("=", 1)
         os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
-# Registers mirror FilterCore TextDomain / build-corpus-v2.py DOMAINS so the corpus
-# can also feed the fine-tune pipeline unchanged.
+# Registers mirror build-corpus-v2.py DOMAINS so the corpus can also feed the
+# fine-tune pipeline unchanged.
 PREAMBLE_RE = re.compile(
     r"^(sure|certainly|of course|absolutely|here(?:'s| is)|i'd be happy to|"
     r"great question|let'?s|below is|here are)\b[^\n.]*[:.]?\s*",

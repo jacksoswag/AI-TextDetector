@@ -505,6 +505,13 @@ REGISTER_PROMPT = {
     "news":         "Write a ~{w}-word news report on: {t}. Body text only, no headline or byline.",
     "conversation": "Write a ~{w}-word casual forum comment about: {t}. First person, opinionated, plain text.",
     "qa":           "In ~{w} words, helpfully answer: {t}. Answer only, no preamble.",
+    # Added for contemporary-register diversity (the model over-flagged these as
+    # human). In --rewrite-mode only the key membership matters (the passage is
+    # rewritten); these template values are the topic-mode fallback.
+    "business":      "Write a ~{w}-word work email body about: {t}. Plain prose, no headers, no signature.",
+    "instructional": "Write ~{w} words of plain how-to instructions for: {t}. Prose steps, no numbered list.",
+    "fiction_modern": "Write a ~{w}-word passage of literary fiction about: {t}. Narrative prose only.",
+    "reviews":       "Write a ~{w}-word first-person product review of: {t}. Casual, plain text.",
 }
 
 
