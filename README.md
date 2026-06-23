@@ -53,7 +53,8 @@ wrong accusation is worse than a missed one.
 - A pixel-art pet beside each flagged block, with a one-line comment on
   hover. Two built-in pets (Mochi the blob and Brill the cat), plus a
   custom pet editor; pet definitions live as JSON files in the user pets
-  folder (Open Folder), and a "None" picker turns the pet off entirely.
+  folder (Open Folder). A "None" picker (the fresh-install default) drops
+  the character and reports the block's AI probability as a bare percentage.
 - Debug Mode makes the pet speak each block's raw score and state.
 
 **Coverage and control**
