@@ -46,11 +46,15 @@ wrong accusation is worse than a missed one.
   and never flickers on rescan.
 
 **Display**
-- Colored highlight overlays (yellow, orange, red) by confidence.
-- A pixel-art pet beside each flagged block, with a one-line comment on hover.
-  Two built-in pets (Mochi and Brill), plus a custom pet editor that exports to
-  JSON. You can also turn pets off entirely.
-- Debug Mode shows each block's raw score.
+- Colored outline overlays with a faint dim: orange for a high-confidence
+  flag and red for very-high. The styling palette also defines a yellow
+  tint for the suspicious band, which the shipped confidence gate (0.80
+  floor) holds back as `unknown`.
+- A pixel-art pet beside each flagged block, with a one-line comment on
+  hover. Two built-in pets (Mochi the blob and Brill the cat), plus a
+  custom pet editor; pet definitions live as JSON files in the user pets
+  folder (Open Folder), and a "None" picker turns the pet off entirely.
+- Debug Mode makes the pet speak each block's raw score and state.
 
 **Coverage and control**
 - Works across browsers and native apps via the Accessibility API.
