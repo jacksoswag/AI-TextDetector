@@ -46,6 +46,9 @@ data/corpus_v2_sample/
 data/corpus_agent/
 # register-deconfound regression sets (regeneratable)
 data/corpus_reg/
+# latest retrain working corpus + OOD scratch (regeneratable via scripts/)
+data/corpus_new/
+data/ood_extra/
 data/corpus/full.csv
 data/corpus/eval_held.csv
 
@@ -71,6 +74,10 @@ test_errors.txt
 
 # Internal working notes (audit / friction / lifecycle) — kept local, not public
 docs/internal/
+# Process scratch: audit reports and arc implementation plans — local, not shipped
+docs/arc/
+docs/audits/
 
 # Local-only Claude skills (per-repo tooling, not published)
 .claude/skills/
+.arc/

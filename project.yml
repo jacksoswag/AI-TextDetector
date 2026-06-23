@@ -27,7 +27,7 @@ settings:
     CODE_SIGN_STYLE: Manual
     CODE_SIGN_IDENTITY: AICF Local Dev Signing
     CURRENT_PROJECT_VERSION: "2"
-    MARKETING_VERSION: "0.2.0"
+    MARKETING_VERSION: "1.0.0"
     # User-facing brand. The Xcode target stays AIContentFilter and the bundle
     # id stays dev.aicf.AIContentFilter; only the .app name and display name
     # carry the brand, so a future rename is a one-line change here.

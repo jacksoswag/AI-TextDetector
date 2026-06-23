@@ -1,0 +1,14 @@
+# SwiftFormat — consistent style enforcement for Veritas.
+# Install: brew install swiftformat        Run: swiftformat .
+# Conservative ruleset: matches the existing house style (4-space indent,
+# implicit self, grouped imports) without reflowing intentional long lines.
+
+--swiftversion 5.9
+--indent 4
+--self remove
+--importgrouping testable-bottom
+--trimwhitespace always
+--commas inline
+
+# Generated / vendored / binary trees are not ours to format.
+--exclude .build,Models,Assets,AIContentFilter.xcodeproj
