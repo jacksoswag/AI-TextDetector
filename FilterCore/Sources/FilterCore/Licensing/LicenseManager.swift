@@ -50,8 +50,10 @@ public final class LicenseManager: ObservableObject {
     /// Set true at launch by an owner build (the App target's OWNER_BUILD flag,
     /// which scripts/install.sh passes) to unlock everything without a key, so
     /// the owner never pays. The public release build leaves it false. It is set
-    /// once before the first scan and only read thereafter.
-    public static var ownerOverride = false
+    /// once before the first scan and only read thereafter, so `nonisolated(unsafe)`
+    /// is sound: the single write happens-before every off-main read in
+    /// `isCurrentlyActive()`.
+    nonisolated(unsafe) public static var ownerOverride = false
 
     /// Thread-safe gate for the detection engine. Reads UserDefaults directly so
     /// it is safe to call off the main actor (it never touches @Published state).

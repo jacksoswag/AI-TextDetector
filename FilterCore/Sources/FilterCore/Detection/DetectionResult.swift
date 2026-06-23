@@ -43,39 +43,36 @@ public enum DetectionState: String, Codable, Sendable, CaseIterable {
 
 public struct FinalDetectionResult: Codable, Sendable {
     public let p_ai_final: Float
-    public let confidence: Float
+    /// INVERTED by construction — highest at p=0.5 (most uncertain), lowest at
+    /// the extremes. Telemetry only; the named-inverted field prevents callers
+    /// from reading it as "more = surer". The gate uses an explicit test instead.
+    public let invertedConfidence: Float
     public let uncertainty: Float
     public let stage_used: String
     public let calibration_source: String
-    
+
     public var state: DetectionState { DetectionState(score: Double(p_ai_final)) }
 
-    public init(p_ai_final: Float, confidence: Float, uncertainty: Float, stage_used: String, calibration_source: String) {
+    public init(p_ai_final: Float, invertedConfidence: Float, uncertainty: Float, stage_used: String, calibration_source: String) {
         self.p_ai_final = p_ai_final
-        self.confidence = confidence
+        self.invertedConfidence = invertedConfidence
         self.uncertainty = uncertainty
         self.stage_used = stage_used
         self.calibration_source = calibration_source
     }
 
     public static let insufficientData = FinalDetectionResult(
-        p_ai_final: 0.5, confidence: 0.0, uncertainty: 1.0, stage_used: "stage1", calibration_source: "none"
+        p_ai_final: 0.5, invertedConfidence: 0.0, uncertainty: 1.0, stage_used: "stage1", calibration_source: "none"
     )
 }
 
 public struct BlockInput: Sendable {
     public let id: String
     public let text: String
-    /// Text of a tiny AI-label block sitting directly above this one on
-    /// screen (block clustering separates "AI Overview"-style headers from
-    /// the answer body they introduce). Provenance reads it; scoring and
-    /// caching ignore it entirely.
-    public let leadingContext: String?
 
-    public init(id: String, text: String, leadingContext: String? = nil) {
+    public init(id: String, text: String) {
         self.id = id
         self.text = text
-        self.leadingContext = leadingContext
     }
 }
 

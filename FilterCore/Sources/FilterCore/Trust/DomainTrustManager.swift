@@ -46,22 +46,6 @@ public final class DomainTrustManager: ObservableObject, @unchecked Sendable {
         return current.contains { host == $0 || host.hasSuffix("." + $0) }
     }
 
-    /// Continuous trust for the fusion formula's `(1 − domainTrust)` term —
-    /// distinct from the binary `isTrusted` gate, which bypasses scoring
-    /// entirely. The scale: 1 = fully trusted source, 0.5 = unknown web,
-    /// 0.6 = native apps (user chose to install them).
-    ///
-    /// AI chat domains are NOT special-cased here. Their contribution to the
-    /// score flows entirely through `AIProvenance.signal()` → `.inTextMarker`
-    /// booster. Giving them both a low trust score AND a provenance boost
-    /// double-counts the same signal.
-    public func trustScore(_ domain: String?) -> Double {
-        guard let domain else { return 0.5 }
-        if isTrusted(domain) { return 1.0 }
-        if domain.hasPrefix("app:") { return 0.6 }
-        return 0.5
-    }
-
     /// Accepts "https://en.wikipedia.org/wiki/X", "www.wikipedia.org", "wikipedia.org".
     public static func normalize(_ raw: String) -> String? {
         var s = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()

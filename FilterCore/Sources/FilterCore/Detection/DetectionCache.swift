@@ -1,50 +1,37 @@
 import Foundation
 
-/// Content-keyed scores from Layers 1 and 2. Layer 3 (calibration) is context-
-/// dependent and time-varying, so it is deliberately NOT cached — it is
-/// recomputed per evaluation (it's a handful of arithmetic ops). That keeps the
-/// cache valid under the spec's rule: invalidate only on text change.
-///
-/// The full feature vector rides along because the §3.2 fusion consumes
-/// individual features, not just the squashed `fastScore` — a cache hit must
-/// be able to recombine them with fresh context (domain trust, provenance,
-/// calibration) without re-running the analyzer.
-///
-/// `aiProbability`/`uncertainty` are the GENERAL detector's output;
-/// `expertProbability`/`expertUncertainty` come from the routed expert when
-/// one ran. The cache key already encodes which (general, expert) pair scored
-/// the text, so entries never mix detectors.
+/// Content-keyed classifier output for one block. The cache key encodes which
+/// detector scored the text, so entries never mix detectors. Calibration is
+/// recomputed per evaluation (not cached), keeping the cache valid under the
+/// rule: invalidate only on text change.
 public struct CachedScores: Sendable {
-    public let fastScore: Double
-    public let heuristicConfidence: Double
-    public let aiProbability: Double?         // nil = general classifier didn't run
+    public let aiProbability: Double?   // nil = classifier didn't run
     public let uncertainty: Double?
-    public let expertProbability: Double?     // nil = no expert ran
-    public let expertUncertainty: Double?
-    public let features: HeuristicFeatures
 
-    public init(fastScore: Double, heuristicConfidence: Double,
-                aiProbability: Double?, uncertainty: Double?,
-                expertProbability: Double? = nil, expertUncertainty: Double? = nil,
-                features: HeuristicFeatures) {
-        self.fastScore = fastScore
-        self.heuristicConfidence = heuristicConfidence
+    public init(aiProbability: Double?, uncertainty: Double?) {
         self.aiProbability = aiProbability
         self.uncertainty = uncertainty
-        self.expertProbability = expertProbability
-        self.expertUncertainty = expertUncertainty
-        self.features = features
     }
 }
 
-/// Small thread-safe LRU keyed by content hash. Re-encounters of the same
-/// block (scrolling, rescans, window switches) cost a dictionary lookup
-/// instead of a model inference — the main battery saver.
+/// Small thread-safe LRU keyed by content hash. Re-encounters of the same block
+/// (scrolling, rescans, window switches) cost a dictionary lookup instead of a
+/// model inference — the main battery saver. Get/insert/evict are all O(1) via
+/// an intrusive doubly-linked list, so a hit never scans an order array.
 public final class DetectionCache: @unchecked Sendable {
 
+    private final class Node {
+        let key: String
+        var value: CachedScores
+        var prev: Node?
+        var next: Node?
+        init(key: String, value: CachedScores) { self.key = key; self.value = value }
+    }
+
     private let capacity: Int
-    private var store: [String: CachedScores] = [:]
-    private var order: [String] = []   // least-recent first
+    private var store: [String: Node] = [:]
+    private var head: Node?   // least-recently used
+    private var tail: Node?   // most-recently used
     private let lock = NSLock()
 
     public init(capacity: Int = 1024) {
@@ -53,19 +40,25 @@ public final class DetectionCache: @unchecked Sendable {
 
     public func scores(for key: String) -> CachedScores? {
         lock.lock(); defer { lock.unlock() }
-        let value = store[key]
-        if value != nil { touch(key) }
-        return value
+        guard let node = store[key] else { return nil }
+        moveToTail(node)
+        return node.value
     }
 
     public func insert(_ scores: CachedScores, for key: String) {
         lock.lock(); defer { lock.unlock() }
-        if store[key] == nil, store.count >= capacity, let oldest = order.first {
-            store.removeValue(forKey: oldest)
-            order.removeFirst()
+        if let node = store[key] {
+            node.value = scores
+            moveToTail(node)
+            return
         }
-        store[key] = scores
-        touch(key)
+        let node = Node(key: key, value: scores)
+        store[key] = node
+        appendToTail(node)
+        if store.count > capacity, let oldest = head {
+            unlink(oldest)
+            store.removeValue(forKey: oldest.key)
+        }
     }
 
     public var count: Int {
@@ -73,8 +66,28 @@ public final class DetectionCache: @unchecked Sendable {
         return store.count
     }
 
-    private func touch(_ key: String) {
-        if let idx = order.firstIndex(of: key) { order.remove(at: idx) }
-        order.append(key)
+    // MARK: - Intrusive list ops (all O(1); caller already holds the lock)
+
+    private func appendToTail(_ node: Node) {
+        node.prev = tail
+        node.next = nil
+        tail?.next = node
+        tail = node
+        if head == nil { head = node }
+    }
+
+    private func unlink(_ node: Node) {
+        node.prev?.next = node.next
+        node.next?.prev = node.prev
+        if head === node { head = node.next }
+        if tail === node { tail = node.prev }
+        node.prev = nil
+        node.next = nil
+    }
+
+    private func moveToTail(_ node: Node) {
+        guard tail !== node else { return }
+        unlink(node)
+        appendToTail(node)
     }
 }

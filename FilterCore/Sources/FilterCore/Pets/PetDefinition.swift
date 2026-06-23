@@ -84,7 +84,7 @@ public struct PetAssets: Codable, Equatable, Sendable {
 
 /// One pet, as authored. The struct mirrors the bundled-JSON contract; the
 /// behavioral pieces that interpret it live elsewhere (`PetSpeechEngine`
-/// picks lines, `PetStateMachine` picks behaviors) so a definition stays a
+/// picks lines, `PetCoordinator` drives behavior) so a definition stays a
 /// dumb, fully serializable value.
 public struct PetDefinition: Codable, Equatable, Sendable, Identifiable {
     public let id: String

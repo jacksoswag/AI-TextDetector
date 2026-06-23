@@ -221,8 +221,16 @@ final class MenuBarManager: ObservableObject {
 
         let stableBlocks = blocks
 
+        // detectorID sentinels namespace the content-hash so unrelated layers
+        // never collide on a shared key: "block" for engine inputs (and the
+        // score cache, where the real Stage-1/Stage-2 model id is what actually
+        // keys entries inside the engine), "overlay" for highlight-panel ids, and
+        // "stats" for the dedup set. They are intentionally DIFFERENT namespaces;
+        // the overlay correlates a flagged block to its verdict by `block.text`,
+        // not by id, so the namespaces never need to match. Unify them only if
+        // id-based correlation is ever introduced.
         let inputs = stableBlocks.map {
-            BlockInput(id: TextMetrics.cacheKey($0.text, detectorID: "block"), text: $0.text, leadingContext: nil)
+            BlockInput(id: TextMetrics.cacheKey($0.text, detectorID: "block"), text: $0.text)
         }
         // OCR blocks share a single floating layer; all other sources key their layer by pid.
         let layerKey = source == .ocr ? OverlayManager.ocrKey : OverlayManager.axKey(app.pid)
@@ -272,10 +280,11 @@ final class MenuBarManager: ObservableObject {
             for pair in confidentFlagged + pendingFlagged { flaggedByText[pair.0.text] = pair }
 
             var stage2TotalMs = 0
-            for (block, _) in pending {
+            for (block, verdict) in pending {
                 if Task.isCancelled { return }
-                let input = BlockInput(id: TextMetrics.cacheKey(block.text, detectorID: "block"),
-                                       text: block.text, leadingContext: nil)
+                // Reuse the Stage-1 verdict's id (already the detectorID:"block"
+                // cache key for this text) instead of re-hashing the block.
+                let input = BlockInput(id: verdict.id, text: block.text)
                 let s2Start = DispatchTime.now()
                 let refined = await self.engine.refine(blocks: [input], domain: domain, source: source)
                 stage2TotalMs += Int(Double(DispatchTime.now().uptimeNanoseconds - s2Start.uptimeNanoseconds) / 1_000_000)
@@ -301,26 +310,31 @@ final class MenuBarManager: ObservableObject {
     /// overlay's `onActiveBlocksChanged` fan-out.
     private func presentFlagged(_ flagged: [(AcquiredBlock, BlockVerdict)],
                                 layerKey: String, domain: String, app: RunningApp) {
-        overlays.present(
-            layerKey: layerKey,
-            blocks: flagged.map { pair in
-                OverlayManager.Block(
-                    id: TextMetrics.cacheKey(pair.0.text, detectorID: "overlay"),
-                    rect: pair.0.screenRect,
-                    state: pair.1.result.state,
-                    finalScore: Double(pair.1.result.p_ai_final),
-                    words: TextMetrics.wordCount(pair.0.text),
-                    anchor: pair.0.anchor,
-                    domain: domain,
-                    route: domain,
-                    result: pair.1.result,
-                    text: pair.0.text
-                )
-            },
-            domain: domain,
-            ownerPID: app.pid
-        )
-        recordNativeStats(flagged.map { (TextMetrics.cacheKey($0.0.text, detectorID: "stats"), TextMetrics.wordCount($0.0.text)) })
+        // wordCount is computed once per flagged block and reused for both the
+        // overlay block and the stats entry. The overlay/stats cache keys use
+        // distinct detectorIDs by design, so those stay separate.
+        var overlayBlocks: [OverlayManager.Block] = []
+        var statsEntries: [(hash: String, words: Int)] = []
+        overlayBlocks.reserveCapacity(flagged.count)
+        statsEntries.reserveCapacity(flagged.count)
+        for (block, verdict) in flagged {
+            let words = TextMetrics.wordCount(block.text)
+            overlayBlocks.append(OverlayManager.Block(
+                id: TextMetrics.cacheKey(block.text, detectorID: "overlay"),
+                rect: block.screenRect,
+                state: verdict.result.state,
+                finalScore: Double(verdict.result.p_ai_final),
+                words: words,
+                anchor: block.anchor,
+                domain: domain,
+                route: domain,
+                result: verdict.result,
+                text: block.text
+            ))
+            statsEntries.append((TextMetrics.cacheKey(block.text, detectorID: "stats"), words))
+        }
+        overlays.present(layerKey: layerKey, blocks: overlayBlocks, domain: domain, ownerPID: app.pid)
+        recordNativeStats(statsEntries)
         statusMessage = flagged.isEmpty
             ? nil
             : "Watching \(flagged.count) AI-likely block\(flagged.count == 1 ? "" : "s") in \(app.name)"

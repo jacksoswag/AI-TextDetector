@@ -18,11 +18,6 @@ public final class TemporalStabilizer: @unchecked Sendable {
         return newSmoothed
     }
 
-    public func clear(blockID: String) {
-        lock.lock(); defer { lock.unlock() }
-        smoothed.removeValue(forKey: blockID)
-    }
-
     public func clearAll() {
         lock.lock(); defer { lock.unlock() }
         smoothed.removeAll()

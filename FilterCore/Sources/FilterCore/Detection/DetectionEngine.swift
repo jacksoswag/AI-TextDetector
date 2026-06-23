@@ -4,20 +4,18 @@ public final class DetectionEngine: @unchecked Sendable {
     
     private let classifierProvider: @Sendable () -> PrimaryClassifier?
     private let stage2Provider: @Sendable () -> PrimaryClassifier?
-    /// Gate for the always-on overlay path: when it returns false (no license)
-    /// every block comes back `.unlicensed` and nothing is scored. Defaults to
-    /// always-on, so tests, benchmarks, and the manual check window are
-    /// unaffected. The app passes `{ LicenseManager.isCurrentlyActive() }`.
+    /// License gate for every scoring path — `evaluate`, `refine`, and the manual
+    /// `analyze`. When it returns false (no license) the always-on path comes back
+    /// `.unlicensed` and `analyze` returns nil; nothing is scored. Defaults to
+    /// always-on, so tests and benchmarks are unaffected. The app passes
+    /// `{ LicenseManager.isCurrentlyActive() }`.
     private let licenseGate: @Sendable () -> Bool
 
-    private let calibration: CalibrationEngine
     private let temporalStabilizer: TemporalStabilizer
-    private let eventLog: SemanticEventLog
     private let cache = DetectionCache()
 
     private let defaults: UserDefaults
     private let trust: DomainTrustManager
-    private let router: DomainRouter
 
     private let classifierLock = NSLock()
     private var stage1Classifier: PrimaryClassifier??
@@ -41,7 +39,6 @@ public final class DetectionEngine: @unchecked Sendable {
         stage2Provider: @escaping @Sendable () -> PrimaryClassifier? = { CoreMLClassifier.loadStage2() },
         defaults: UserDefaults = .appGroup,
         trust: DomainTrustManager? = nil,
-        router: DomainRouter? = nil,
         licenseGate: @escaping @Sendable () -> Bool = { true }
     ) {
         self.classifierProvider = classifierProvider
@@ -49,11 +46,7 @@ public final class DetectionEngine: @unchecked Sendable {
         self.licenseGate = licenseGate
         self.defaults = defaults
         self.trust = trust ?? DomainTrustManager(defaults: defaults)
-        self.router = router ?? DomainRouter()
-        
-        self.calibration = CalibrationEngine()
         self.temporalStabilizer = TemporalStabilizer()
-        self.eventLog = SemanticEventLog(defaults: defaults)
     }
     
     private func getStage1() -> PrimaryClassifier? {
@@ -81,14 +74,18 @@ public final class DetectionEngine: @unchecked Sendable {
     }
 
     /// Score one piece of pasted text for the manual check window and return the
-    /// calibrated AI probability (0...1), or nil if no model could be loaded.
+    /// calibrated AI probability (0...1), or nil if no license is active or no
+    /// model could be loaded.
     ///
-    /// Unlike `evaluate`, this surface is deliberately UNGATED: it ignores the
-    /// master enable switch, the word-count floor, trusted domains, and the
-    /// confidence/"unknown" gate. Those gates exist to keep the always-on overlay
-    /// quiet and false-positive-averse; the check window is the opposite contract
-    /// — the user pasted text and asked for a verdict, so one is always returned.
+    /// The whole app is paid, so this surface is license-gated like `evaluate`
+    /// and `refine`: with no license it returns nil and runs no inference. Once
+    /// licensed it still bypasses the always-on quietness gates — the master
+    /// enable switch, the word-count floor, trusted domains, and the
+    /// confidence/"unknown" gate. Those keep the background overlay quiet and
+    /// false-positive-averse; the check window is the opposite contract — the
+    /// user pasted text and asked for a verdict, so one is always returned.
     public func analyze(text: String) async -> Double? {
+        guard licenseGate() else { return nil }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, let stage1 = getStage1(),
               let s1 = (try? await stage1.score(texts: [trimmed]))?.first else { return nil }
@@ -104,8 +101,7 @@ public final class DetectionEngine: @unchecked Sendable {
             pBase = s2.aiProbability
         }
 
-        let route = router.route(text: trimmed, webDomain: nil)
-        return calibration.calibrate(pBase: pBase, domain: route.domain.rawValue)
+        return pBase
     }
 
     /// When `deferStage2` is true the slow Stage-2 model is NOT run here.
@@ -137,20 +133,21 @@ public final class DetectionEngine: @unchecked Sendable {
         let stage1 = getStage1()
 
         // One slot per input block, in order. Each slot is either a finished
-        // placeholder verdict (tooShort / modelUnavailable) or a scoreable
-        // block carrying its route + cache key. The final assembly walks these
-        // in order so the one-verdict-per-input-in-order invariant holds.
+        // placeholder verdict (tooShort / modelUnavailable) or a scoreable block
+        // carrying its cache key and word count (computed once here and reused by
+        // the escalation gate). The final assembly walks these in order so the
+        // one-verdict-per-input-in-order invariant holds.
         enum Slot {
             case placeholder(BlockVerdict)
-            case scoreable(block: BlockInput, route: RoutingDecision, key: String)
+            case scoreable(block: BlockInput, key: String, words: Int)
         }
 
         var slots: [Slot] = []
         slots.reserveCapacity(blocks.count)
 
-        // FIX #5: with no Stage-1 classifier every scoreable block fails fast.
-        // FIX #8 first pass: too-short blocks become placeholders, the rest get
-        // a route + cache key. FIX #7: cache misses go into one Stage-1 batch.
+        // With no Stage-1 classifier every scoreable block fails fast. Too-short
+        // blocks become placeholders; the rest get a cache key. Cache misses go
+        // into one batched Stage-1 call.
         var missTexts: [String] = []
         var missKeys: [String] = []
         var seenMissKeys = Set<String>()
@@ -172,9 +169,8 @@ public final class DetectionEngine: @unchecked Sendable {
                 continue
             }
 
-            let route = router.route(text: block.text, webDomain: domain)
             let key = TextMetrics.cacheKey(block.text, detectorID: stage1.id)
-            slots.append(.scoreable(block: block, route: route, key: key))
+            slots.append(.scoreable(block: block, key: key, words: words))
 
             if let hit = cache.scores(for: key), let p = hit.aiProbability {
                 cachedScored[key] = Scored(p1: p, unc1: hit.uncertainty ?? 0)
@@ -184,9 +180,9 @@ public final class DetectionEngine: @unchecked Sendable {
             }
         }
 
-        // FIX #8 cancellation: before the Stage-1 call, bail out returning a
-        // verdict per input in order (placeholders pass through; not-yet-scored
-        // scoreables become insufficientData with no skipReason).
+        // Cancellation: before the Stage-1 call, bail out returning a verdict per
+        // input in order (placeholders pass through; not-yet-scored scoreables
+        // become insufficientData with no skipReason).
         if Task.isCancelled {
             return slots.map { slot in
                 switch slot {
@@ -198,7 +194,7 @@ public final class DetectionEngine: @unchecked Sendable {
             }
         }
 
-        // FIX #8: ONE batched Stage-1 call for every cache miss.
+        // ONE batched Stage-1 call for every cache miss.
         var batchScored: [String: Scored] = [:]
         if let stage1, !missTexts.isEmpty {
             let outputs = (try? await stage1.score(texts: missTexts)) ?? []
@@ -206,12 +202,8 @@ public final class DetectionEngine: @unchecked Sendable {
                 guard i < outputs.count else { continue }
                 let out = outputs[i]
                 batchScored[key] = Scored(p1: out.aiProbability, unc1: out.uncertainty)
-                // FIX #7: cache Stage-1/general output only (matches the
-                // documented meaning of CachedScores).
                 cache.insert(CachedScores(
-                    fastScore: 0, heuristicConfidence: 0,
-                    aiProbability: out.aiProbability, uncertainty: out.uncertainty,
-                    features: HeuristicFeatures()), for: key)
+                    aiProbability: out.aiProbability, uncertainty: out.uncertainty), for: key)
             }
         }
 
@@ -239,15 +231,15 @@ public final class DetectionEngine: @unchecked Sendable {
 
         var escalationKeys = Set<String>()
         for slot in slots {
-            guard case let .scoreable(block, _, key) = slot,
+            guard case let .scoreable(_, key, words) = slot,
                   let scored = stage1Result(for: key) else { continue }
-            guard TextMetrics.wordCount(block.text) >= escalationMinWords else { continue }
+            guard words >= escalationMinWords else { continue }
             let ambiguous = scored.p1 >= escalationLow && scored.p1 <= escalationHigh
             let dispersed = scored.unc1 >= dispersionFloor
             if ambiguous || dispersed { escalationKeys.insert(key) }
         }
 
-        // FIX #8 cancellation: bail before any Stage-2 work.
+        // Cancellation: bail before any Stage-2 work.
         if Task.isCancelled {
             return slots.map { slot in
                 switch slot {
@@ -270,7 +262,7 @@ public final class DetectionEngine: @unchecked Sendable {
             var escalateKeys: [String] = []
             var seen = Set<String>()
             for slot in slots {
-                guard case let .scoreable(block, _, key) = slot,
+                guard case let .scoreable(block, key, _) = slot,
                       escalationKeys.contains(key), seen.insert(key).inserted else { continue }
                 escalateTexts.append(block.text)
                 escalateKeys.append(key)
@@ -282,7 +274,7 @@ public final class DetectionEngine: @unchecked Sendable {
             }
         }
 
-        // FIX #8 assembly: walk slots in order, producing one verdict each.
+        // Assembly: walk slots in order, producing one verdict each.
         var verdicts: [BlockVerdict] = []
         verdicts.reserveCapacity(slots.count)
         var scoredIDs = Set<String>()
@@ -292,10 +284,10 @@ public final class DetectionEngine: @unchecked Sendable {
             case .placeholder(let verdict):
                 verdicts.append(verdict)
 
-            case .scoreable(let block, let route, let key):
+            case .scoreable(let block, let key, _):
                 guard let scored = stage1Result(for: key) else {
-                    // FIX #5: no Stage-1 output for a scoreable block — fail
-                    // fast, never escalate.
+                    // No Stage-1 output for a scoreable block — fail fast, never
+                    // escalate.
                     verdicts.append(BlockVerdict(
                         id: block.id, result: .insufficientData,
                         shouldHighlight: false, skipReason: .modelUnavailable))
@@ -306,22 +298,22 @@ public final class DetectionEngine: @unchecked Sendable {
                 if let s2 = stage2Scored[key] {
                     // Synchronous escalation already resolved to Stage-2.
                     verdicts.append(makeVerdict(
-                        block: block, route: route, pBase: s2.p1, finalUnc: s2.unc1,
+                        block: block, pBase: s2.p1, finalUnc: s2.unc1,
                         stageUsed: "stage2", needsRefinement: false, settings: settings))
                 } else {
                     // Stage-1 verdict. In deferred mode, flag the gate's
                     // candidates so the caller's refine() pass resolves them.
                     let pending = deferStage2 && escalationKeys.contains(key)
                     verdicts.append(makeVerdict(
-                        block: block, route: route, pBase: scored.p1, finalUnc: scored.unc1,
+                        block: block, pBase: scored.p1, finalUnc: scored.unc1,
                         stageUsed: "stage1", needsRefinement: pending, settings: settings))
                 }
             }
         }
 
-        // FIX #6 / FIX #4: prune EMA and sticky-highlight state for paragraphs
-        // no longer on screen so they can't leak into future scans or grow
-        // unboundedly now that ids are content-based.
+        // Prune EMA and sticky-highlight state for paragraphs no longer on screen
+        // so they can't leak into future scans or grow unboundedly now that ids
+        // are content-based.
         temporalStabilizer.retain(ids: scoredIDs)
         highlightLock.lock()
         for id in lastHighlight.keys where !scoredIDs.contains(id) {
@@ -332,28 +324,30 @@ public final class DetectionEngine: @unchecked Sendable {
         return verdicts
     }
 
-    /// Stage-aware verdict assembly: calibration → temporal smoothing → sticky
-    /// hysteresis → event log. Shared by the synchronous loop, the deferred
-    /// Stage-1 pass, and `refine`. Mutates `lastHighlight`; the caller records
-    /// `block.id` in its scored-id set for pruning.
+    /// Stage-aware verdict assembly: temporal smoothing → sticky hysteresis →
+    /// confidence gate. Shared by the synchronous loop, the deferred Stage-1
+    /// pass, and `refine`. Mutates `lastHighlight`; the caller records `block.id`
+    /// in its scored-id set for pruning.
     private func makeVerdict(
-        block: BlockInput, route: RoutingDecision,
+        block: BlockInput,
         pBase: Double, finalUnc: Double, stageUsed: String,
         needsRefinement: Bool, settings: SettingsSnapshot
     ) -> BlockVerdict {
-        let pFinal = calibration.calibrate(pBase: pBase, domain: route.domain.rawValue)
-        // NOTE: `confidence` is INVERTED by construction — highest at p=0.5 (most
-        // uncertain), lowest at the extremes. It is recorded for telemetry only;
-        // the confidence gate below uses an explicitly-oriented test, never this
-        // value, so "more confidence = surer" must not be assumed of it.
-        let confidence = Float(1.0 - abs(0.5 - pFinal) * 2.0)
+        // The model already applies its fitted Platt scaling in CoreMLClassifier,
+        // so the final probability is the model's calibrated output as-is.
+        let pFinal = pBase
+        // NOTE: `invertedConfidence` is INVERTED by construction — highest at
+        // p=0.5 (most uncertain), lowest at the extremes. It is recorded for
+        // telemetry only; the confidence gate below uses an explicitly-oriented
+        // test, never this value, so "more = surer" must not be assumed of it.
+        let invertedConfidence = Float(1.0 - abs(0.5 - pFinal) * 2.0)
 
         // TEMPORAL STABILIZATION
         let smoothedP = temporalStabilizer.update(blockID: block.id, p: pFinal)
 
-        // HYSTERESIS — enter at the user threshold, exit 12% below; FIX #4: in
-        // the dead band stick to the remembered decision instead of a midpoint.
-        // This decides only whether the score CLEARS THE BAR; the confidence gate
+        // HYSTERESIS — enter at the user threshold, exit 12% below; in the dead
+        // band stick to the remembered decision instead of a midpoint. This
+        // decides only whether the score CLEARS THE BAR; the confidence gate
         // below decides whether clearing the bar is enough to actually paint.
         let enterHighlight = settings.threshold
         let exitHighlight = max(0.05, settings.threshold - 0.12)
@@ -387,30 +381,11 @@ public final class DetectionEngine: @unchecked Sendable {
         let shouldHighlight = clearsBar && decisivelyAI && !tooUncertain
 
         let result = FinalDetectionResult(
-            p_ai_final: Float(pFinal), confidence: confidence,
+            p_ai_final: Float(pFinal), invertedConfidence: invertedConfidence,
             uncertainty: Float(finalUnc), stage_used: stageUsed,
-            calibration_source: "domain_calibrator")
-
-        // Telemetry separates a confidence-gated abstention ("unknown") from a
-        // plain below-threshold "ignored", so gate-distribution analysis can see
-        // how often the gate suppresses a would-be highlight.
-        let uiAction: String
-        if shouldHighlight { uiAction = "highlight" }
-        else if clearsBar { uiAction = "unknown" }
-        else { uiAction = "ignored" }
-
-        eventLog.record(ReplayEvent(
-            timestamp: Date(),
-            blockHash: SemanticEventLog.hashBlock(block.text),
-            stageUsed: stageUsed, pAiFinal: Float(pFinal), confidence: confidence,
-            uncertainty: Float(finalUnc), domain: route.domain.rawValue,
-            latencyMs: 45,
-            uiAction: uiAction,
-            explainability: ExplainabilitySnapshot(
-                calibrationApplied: pFinal - pBase,
-                uncertaintyBreakdown: finalUnc,
-                confidenceDistribution: Double(confidence),
-                stageDecisionReason: stageUsed == "stage2" ? "escalation_criteria_met" : "high_confidence")))
+            // Calibration now lives entirely in the model (Platt scaling in
+            // CoreMLClassifier when model-info carries it, else raw output).
+            calibration_source: "model_builtin")
 
         return BlockVerdict(id: block.id, result: result,
                             shouldHighlight: shouldHighlight, needsRefinement: needsRefinement)
@@ -434,15 +409,12 @@ public final class DetectionEngine: @unchecked Sendable {
             return blocks.map { BlockVerdict(id: $0.id, result: .insufficientData, shouldHighlight: false, skipReason: .modelUnavailable) }
         }
 
-        var routeByID: [String: RoutingDecision] = [:]
         var keyByID: [String: String] = [:]
         var scoredByKey: [String: Scored] = [:]
         var missTexts: [String] = []
         var missKeys: [String] = []
         var seenMiss = Set<String>()
         for block in blocks {
-            let route = router.route(text: block.text, webDomain: domain)
-            routeByID[block.id] = route
             let key = TextMetrics.cacheKey(block.text, detectorID: stage2.id)
             keyByID[block.id] = key
             if let hit = cache.scores(for: key), let p = hit.aiProbability {
@@ -463,18 +435,15 @@ public final class DetectionEngine: @unchecked Sendable {
                 let out = outputs[i]
                 scoredByKey[key] = Scored(p1: out.aiProbability, unc1: out.uncertainty)
                 cache.insert(CachedScores(
-                    fastScore: 0, heuristicConfidence: 0,
-                    aiProbability: out.aiProbability, uncertainty: out.uncertainty,
-                    features: HeuristicFeatures()), for: key)
+                    aiProbability: out.aiProbability, uncertainty: out.uncertainty), for: key)
             }
         }
 
         return blocks.map { block in
-            guard let route = routeByID[block.id], let key = keyByID[block.id],
-                  let s2 = scoredByKey[key] else {
+            guard let key = keyByID[block.id], let s2 = scoredByKey[key] else {
                 return BlockVerdict(id: block.id, result: .insufficientData, shouldHighlight: false, skipReason: .modelUnavailable)
             }
-            return makeVerdict(block: block, route: route, pBase: s2.p1, finalUnc: s2.unc1,
+            return makeVerdict(block: block, pBase: s2.p1, finalUnc: s2.unc1,
                                stageUsed: "stage2", needsRefinement: false, settings: settings)
         }
     }

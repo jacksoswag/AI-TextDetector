@@ -263,6 +263,10 @@ public final class CoreMLClassifier: PrimaryClassifier, @unchecked Sendable {
         guard content.count > body else { return [content[...]] }
 
         let stride = body - windowOverlap
+        // A seq_len <= windowOverlap + 2 makes stride <= 0, which would never
+        // advance `start` (infinite loop). Both shipped models are 256/512, so
+        // this only guards a hypothetical tiny future model: score one window.
+        guard stride > 0 else { return [content[..<body]] }
         var slices: [ArraySlice<Int32>] = []
         var start = 0
         while start < content.count {
@@ -291,9 +295,19 @@ public final class CoreMLClassifier: PrimaryClassifier, @unchecked Sendable {
         let shape = [1, NSNumber(value: info.seq_len)]
         let ids = try MLMultiArray(shape: shape, dataType: .int32)
         let mask = try MLMultiArray(shape: shape, dataType: .int32)
-        for i in 0..<info.seq_len {
-            ids[i] = NSNumber(value: encoded.ids[i])
-            mask[i] = NSNumber(value: encoded.mask[i])
+        // Bulk-copy into each array's contiguous int32 buffer. A fresh
+        // [1, seqLen] MLMultiArray is contiguous (the closure's stride arg is
+        // unused for that reason) and `assemble` pads ids/mask to exactly seqLen,
+        // so a raw byte copy avoids the per-element NSNumber boxing the subscript
+        // path pays on every window. The assert pins the length invariant the
+        // copy relies on — a future model with a mismatched seq_len would
+        // otherwise corrupt inputs silently.
+        assert(encoded.ids.count == info.seq_len && encoded.mask.count == info.seq_len)
+        encoded.ids.withUnsafeBytes { src in
+            ids.withUnsafeMutableBytes { dst, _ in dst.copyMemory(from: src) }
+        }
+        encoded.mask.withUnsafeBytes { src in
+            mask.withUnsafeMutableBytes { dst, _ in dst.copyMemory(from: src) }
         }
         return try MLDictionaryFeatureProvider(dictionary: [
             inputIDsName: MLFeatureValue(multiArray: ids),

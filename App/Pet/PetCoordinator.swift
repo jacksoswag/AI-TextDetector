@@ -15,7 +15,7 @@ import FilterCore
 /// `setScrolling` fades the swarm during a scroll burst. No timers of its own
 /// beyond the fixed fly-in/out one-shots, no per-frame work. Determinism
 /// carries over from the old presenter: behavior and speech are pure
-/// functions of (block, pet, state) via PetStateMachine + PetSpeechEngine,
+/// functions of (block, pet, state) via PetCoordinator + PetSpeechEngine,
 /// and instance adds/removes follow a deterministic order (score, then id).
 @MainActor
 final class PetCoordinator {
