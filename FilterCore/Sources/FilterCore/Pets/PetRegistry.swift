@@ -72,54 +72,29 @@ public final class PetRegistry: ObservableObject, @unchecked Sendable {
         didSet { defaults.set(activePetID, forKey: Self.activeIDKey) }
     }
 
+    /// The absence of a pet, modeled as one so selection always has a real
+    /// value to point at — and the default a fresh install lands on
+    /// (`activePetID == ""` resolves here). "None" has no authored voice: where
+    /// a real pet speaks a flavor line, this one states the model's AI
+    /// probability outright ("67% AI") via `noneSpeechLine(forAIProbability:)`.
+    /// Its templates are therefore empty, and its art is a 1×1 transparent pixel
+    /// so no character ever draws on screen.
     public static let nonePet = PetDefinition(
         id: "none",
         name: "None",
-        speechTemplates: [
-            "safe": [
-                "Rhythm and word choice vary naturally. This reads human.",
-                "Burstiness is healthy. No machine fingerprints found.",
-                "Sentence lengths swing like a person wrote them. Clear.",
-                "Vocabulary is irregular in the good way. Human signal.",
-                "No template structures detected. Looks organic.",
-                "Typos, tangents, texture. People write like this."
-            ],
-            "uncertain": [
-                "Mixed signals. I would not call this either way.",
-                "Some even pacing, but plenty of human noise. Inconclusive.",
-                "The data is ambiguous. Withholding judgment.",
-                "Short sample, weak signal. Treat any score as a guess.",
-                "Could be edited prose, could be a model. Not enough evidence.",
-                "I see overlap with both styles. No verdict from me."
-            ],
-            "suspicious": [
-                "Sentence rhythm is unusually even here.",
-                "Low burstiness and tidy transitions. Worth a closer look.",
-                "Hedged claims, balanced clauses. A familiar pattern.",
-                "Word variety is flatter than typical human prose.",
-                "Every paragraph lands at the same length. Notable.",
-                "Connective phrasing looks templated. Keep that in mind."
-            ],
-            "high": [
-                "Multiple stylometric markers align with AI generation.",
-                "Uniform cadence, stock phrasing, zero typos. Strong signal.",
-                "This matches model output on most of my checks.",
-                "Statistically, humans rarely write this evenly.",
-                "High confidence: the structure here is machine-typical.",
-                "The fingerprint is consistent across the whole passage."
-            ],
-            "very_high": [
-                "Provenance markers indicate machine generation. Near certain.",
-                "Every check I ran agrees: this is model output.",
-                "Confidence is at the top of my scale. AI-written.",
-                "This is as close to certain as my analysis gets.",
-                "Signal saturation. I would file this as AI text.",
-                "Generated text, with metadata to match. Case closed."
-            ]
-        ],
+        speechTemplates: [:],
         animationProfile: PetAnimationProfile(idle: "idle", track: "track", alert: "alert"),
         assets: PetAssets(basePNG: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", gifs: [:])
     )
+
+    /// The "none" pet's line for an AI probability (0...1): the verdict as a bare
+    /// percentage ("67% AI"), the call with the character stripped off. Computed
+    /// at render time because the score isn't known when templates are authored;
+    /// shared by the manual-check window and the on-screen companion so both
+    /// phrase it identically.
+    public static func noneSpeechLine(forAIProbability probability: Double) -> String {
+        "\(Int((probability * 100).rounded()))% AI"
+    }
 
     public init(builtinDirectory: URL?,
                 userDirectory: URL = AppInfo.supportDirectory.appendingPathComponent("Pets"),

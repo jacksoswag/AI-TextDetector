@@ -77,11 +77,13 @@ struct TextCheckView: View {
                 analyzing = false
                 guard let p else { modelUnavailable = true; return }
                 let pet = registry.activePet ?? PetRegistry.nonePet
-                let line = PetSpeechEngine.line(
-                    blockID: String(PetSpeechEngine.stableHash(snapshot)),
-                    petID: pet.id,
-                    stateKey: DetectionState(score: p).rawValue,
-                    templates: pet.speechTemplates)
+                let line = pet.id == "none"
+                    ? PetRegistry.noneSpeechLine(forAIProbability: p)
+                    : PetSpeechEngine.line(
+                        blockID: String(PetSpeechEngine.stableHash(snapshot)),
+                        petID: pet.id,
+                        stateKey: DetectionState(score: p).rawValue,
+                        templates: pet.speechTemplates)
                 verdict = CheckVerdict(aiProbability: p, petLine: line)
             }
         }

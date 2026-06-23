@@ -463,12 +463,16 @@ final class PetCoordinator {
     private func speechLine(for id: String) -> String {
         guard let block = logicalBlocks[id] else { return "..." }
         let pet = registry.activePet
-        var line = PetSpeechEngine.line(
-            blockID: id,
-            petID: pet?.id ?? "none",
-            stateKey: block.state.rawValue,
-            templates: pet?.speechTemplates ?? [:]
-        )
+        // No pet (or "none" selected) speaks the AI percentage instead of a
+        // template line — the verdict with the character stripped off.
+        var line = (pet?.id ?? "none") == "none"
+            ? PetRegistry.noneSpeechLine(forAIProbability: block.finalScore)
+            : PetSpeechEngine.line(
+                blockID: id,
+                petID: pet?.id ?? "none",
+                stateKey: block.state.rawValue,
+                templates: pet?.speechTemplates ?? [:]
+            )
         let sourceTag = block.result.calibration_source == "ocr" ? " [OCR]" : " [AX]"
         if debugMode, let spoken = line {
             line = spoken + " · " + String(format: "%.2f %@", block.finalScore, block.state.rawValue) + sourceTag
