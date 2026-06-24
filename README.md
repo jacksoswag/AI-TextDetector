@@ -10,7 +10,7 @@ wrong accusation is worse than a missed one.
 ## Screenshots
 
 ![Pilcrow highlighting a flagged paragraph in a browser](docs/assets/screenshot-overlay.png)
-*A flagged block gets a colored outline; the pet comments only on hover.*
+*A flagged block gets a colored bracket on its left edge; the pet comments only on hover.*
 
 ![The Pilcrow menu-bar menu](docs/assets/screenshot-menu.png)
 *One master switch, a threshold slider, and a trusted-sites list. No scan button.*
@@ -28,8 +28,9 @@ wrong accusation is worse than a missed one.
 - **Works everywhere you read.** Browsers and native macOS apps, with no per-app
   setup, through the Accessibility API. An OCR fallback covers canvas surfaces
   like Google Docs.
-- **Out of your way.** Highlights are click-through outlines with a faint dim.
-  Nothing is blurred, blocked, or hidden. A clean page shows nothing at all.
+- **Out of your way.** Highlights are click-through brackets on the left edge of
+  the flagged block. Nothing is dimmed, blurred, blocked, or hidden. A clean
+  page shows nothing at all.
 - **One-time price.** $4.99, perpetual license for the current major version. No
   subscription.
 
@@ -46,10 +47,10 @@ wrong accusation is worse than a missed one.
   and never flickers on rescan.
 
 **Display**
-- Colored outline overlays with a faint dim: orange for a high-confidence
-  flag and red for very-high. The styling palette also defines a yellow
-  tint for the suspicious band, which the shipped confidence gate (0.80
-  floor) holds back as `unknown`.
+- A thin colored bracket on the left edge of the flagged block (no fill, no
+  border, no overlay): orange for a high-confidence flag and red for very-high.
+  The styling palette also defines a yellow tint for the suspicious band, which
+  the shipped confidence gate (0.80 floor) holds back as `unknown`.
 - A pixel-art pet beside each flagged block, with a one-line comment on
   hover. Two built-in pets (Mochi the blob and Brill the cat), plus a
   custom pet editor; pet definitions live as JSON files in the user pets
