@@ -414,10 +414,11 @@ final class MenuBarManager: ObservableObject {
 
     // MARK: - Licensing / web
 
-    @discardableResult
-    func activateLicense(_ key: String) -> Bool { license.activate(key) }
+    func activateLicense(_ key: String) async -> LicenseManager.ActivationOutcome {
+        await license.activate(key)
+    }
 
-    func openPurchase() { open(Brand.purchaseURL) }
+    func openPurchase() { NSWorkspace.shared.open(LicenseConfig.checkoutURL) }
     func openWebsite() { open(Brand.siteURL) }
     func openPrivacyPage() { open(Brand.privacyURL) }
     func openTermsPage() { open(Brand.termsURL) }

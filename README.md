@@ -97,7 +97,7 @@ documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 Pilcrow is a one-time $4.99 purchase, for use on your own Macs, refundable
 within 14 days. Buy it and your license key arrives by email; paste it into the
 menu (Enter License) to unlock detection, both watching as you read and the
-manual Check Text. Buy at [CHECKOUT_URL].
+manual Check Text. Buy at https://pilcrow.lemonsqueezy.com/buy/REPLACE-WITH-VARIANT-ID.
 
 ## Limitations
 

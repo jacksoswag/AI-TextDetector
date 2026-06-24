@@ -1,8 +1,8 @@
 # ── Secrets (NEVER commit) ──────────────────────────────────────────
 .env
 .env.*
-# license signing private key (mints all license keys) — own line: git has no
-# inline comments, so a trailing "# ..." would make this match nothing.
+# secrets dir and any private keys/certs — own line: git has no inline comments,
+# so a trailing "# ..." would make this match nothing.
 .secrets/
 *.pem
 *.key

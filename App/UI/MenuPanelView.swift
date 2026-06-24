@@ -535,13 +535,15 @@ private struct LicenseSection: View {
     @State private var keyText = ""
     @State private var errorKind: KeyError?
     @State private var justActivated = false
+    @State private var activating = false
 
     private enum KeyError {
-        case malformed, rejected
+        case malformed, rejected, unreachable
         var message: String {
             switch self {
             case .malformed: return "That doesn't look like a license key. Paste the whole key from your purchase email."
             case .rejected:  return "That key wasn't accepted. Check it matches your purchase email exactly."
+            case .unreachable: return "Couldn't reach the licensing server. Check your internet connection and try again."
             }
         }
     }
@@ -550,11 +552,11 @@ private struct LicenseSection: View {
         switch license.status {
         case .owner:
             EmptyView()
-        case .licensed(let name):
+        case .licensed:
             // Brief confirmation right after activation, then the panel goes
             // quiet for a paying user.
             if justActivated {
-                Label("Licensed to \(name). Thank you.", systemImage: "checkmark.seal.fill")
+                Label("License activated. Thank you.", systemImage: "checkmark.seal.fill")
                     .font(.caption).foregroundStyle(.green)
                     .transition(.opacity)
             } else {
@@ -595,27 +597,39 @@ private struct LicenseSection: View {
                     .frame(width: 280, alignment: .leading)
             }
             HStack {
+                if activating { ProgressView().controlSize(.small) }
                 Spacer()
-                Button("Activate") {
-                    if !LicenseManager.looksLikeKey(keyText) {
-                        errorKind = .malformed
-                    } else if manager.activateLicense(keyText) {
-                        showEntry = false
-                        errorKind = nil
-                        keyText = ""
-                        withAnimation { justActivated = true }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
-                            withAnimation { justActivated = false }
-                        }
-                    } else {
-                        errorKind = .rejected
-                    }
-                }
-                .keyboardShortcut(.defaultAction)
-                .disabled(keyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Button("Activate") { activate() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(activating || keyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding(16)
+    }
+
+    /// Validate the key online once, then unlock from the local record. The only
+    /// network call the app makes for licensing; an unreachable server here is the
+    /// one place it matters (after activation the app runs fully offline).
+    private func activate() {
+        guard LicenseManager.looksLikeKey(keyText) else { errorKind = .malformed; return }
+        activating = true
+        errorKind = nil
+        Task {
+            let outcome = await manager.activateLicense(keyText)
+            activating = false
+            switch outcome {
+            case .activated:
+                showEntry = false
+                keyText = ""
+                withAnimation { justActivated = true }
+                try? await Task.sleep(for: .seconds(4))
+                withAnimation { justActivated = false }
+            case .invalidKey:
+                errorKind = .rejected
+            case .networkUnavailable:
+                errorKind = .unreachable
+            }
+        }
     }
 }
 

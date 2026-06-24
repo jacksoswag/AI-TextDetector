@@ -13,6 +13,12 @@ public enum AppInfo {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent(supportDirectoryName)
     }
+
+    /// The validated-license record. Written once at activation (0o600) and then
+    /// read locally on every launch with no network call — see LicenseManager.
+    public static var licenseFile: URL {
+        supportDirectory.appendingPathComponent("license.json")
+    }
 }
 
 public extension UserDefaults {
