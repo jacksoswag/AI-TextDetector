@@ -19,7 +19,7 @@ public enum LicenseConfig {
     /// Lemon Squeezy checkout URL. OWNER-GATED placeholder: paste the real product
     /// checkout URL once the Lemon Squeezy store exists. The in-app "Buy Pilcrow"
     /// button opens this.
-    public static let checkoutURL = URL(string: "https://pilcrow.lemonsqueezy.com/buy/REPLACE-WITH-VARIANT-ID")!
+    public static let checkoutURL = URL(string: "https://spect-crow.lemonsqueezy.com/checkout/buy/f9643e6f-058f-4da1-841f-8ef58c56ddb6")!
 
     /// Which backend validates keys. Debug builds use `.stub`, which accepts a
     /// well-formed test key offline so the activation flow works before the store
