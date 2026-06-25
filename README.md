@@ -39,7 +39,7 @@ wrong accusation is worse than a missed one.
 **Detection**
 - Two-stage on-device cascade: a fast 33M-parameter screener (~4 ms per block)
   handles everything; a 396M-parameter ModernBERT-large model gives a second
-  opinion (~144 ms) only on borderline, long-enough blocks.
+  opinion (~144 ms) only on borderline blocks of at least 120 words.
 - A confidence gate that abstains ("unknown") rather than forcing a verdict.
 - Calibration tuned to reduce false positives on formal and academic prose.
 - A detection threshold slider (0.30 to 0.95, default 0.85).
@@ -62,15 +62,19 @@ wrong accusation is worse than a missed one.
 - Works across browsers and native apps via the Accessibility API.
 - OCR fallback (ScreenCaptureKit + Vision) for canvas surfaces.
 - A Trusted Sites list to skip domains you trust entirely.
-- A **Check Text** panel for pasting a passage and getting a verdict on demand.
-- "Erase All Local Data" wipes every local setting in one click.
+- A **Check Text** panel for pasting a passage and getting a verdict on demand
+  (requires an activated license).
+- A live pet-size slider that resizes every on-screen marker.
+- "Erase All Local Data" wipes every local setting in one click; an activated
+  license key is preserved so a reset never drops a paid key.
 
 ## Privacy
 
 Pilcrow collects nothing and sends nothing off your Mac. Both models run locally.
 On-screen text is processed in memory and never written to disk or transmitted.
-The app runs no local servers and opens no network ports. Full details are in
-[PRIVACY.md](PRIVACY.md).
+The app runs no local servers and opens no network ports. The only outbound
+request is a one-time license-key validation against Lemon Squeezy when you
+activate a purchase. Full details are in [PRIVACY.md](PRIVACY.md).
 
 ## How it works
 
@@ -122,7 +126,8 @@ with the OCR fallback (needs Screen Recording) as a backstop.
 **Can I use it to catch students?** It is not built for that. Pilcrow produces an
 estimate, not proof, and should never be the sole basis for an accusation.
 
-**Does it need internet?** No. Detection is fully local.
+**Does it need internet?** No. Detection is fully local. Activating a purchased
+license is the one exception: the key is validated once against Lemon Squeezy.
 
 **What about false positives?** The pipeline is tuned to abstain on borderline
 text precisely to avoid them, but no detector is perfect. Treat flags as signals.
@@ -136,10 +141,11 @@ scripts/make-signing-cert.sh   # once: a stable local signing identity
 scripts/install.sh             # build, install to /Applications, launch
 ```
 
-`scripts/release.sh` produces a signed, notarized DMG for distribution (see
-[docs/RELEASE.md](docs/RELEASE.md)). The detection architecture is in
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and the model-training pipeline is
-in [docs/TRAINING.md](docs/TRAINING.md).
+`scripts/bootstrap.sh` regenerates the Xcode project and opens it for an
+in-Xcode run. `scripts/release.sh` produces a signed, notarized DMG for
+distribution (see [docs/RELEASE.md](docs/RELEASE.md)). The detection
+architecture is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and the
+model-training pipeline is in [docs/TRAINING.md](docs/TRAINING.md).
 
 ## License
 
