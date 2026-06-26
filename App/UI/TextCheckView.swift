@@ -12,16 +12,17 @@ struct TextCheckView: View {
 
     @State private var text = ""
     @State private var verdict: CheckVerdict?
+    @State private var blocks: [AIBlockScore]?
+    @State private var analyzedText = ""
+    @State private var hoveredBlock: Double?
     @State private var analyzing = false
     @State private var modelUnavailable = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            TextEditor(text: $text)
-                .font(.body)
-                .scrollContentBackground(.hidden)
-                .padding(8)
-                .frame(minHeight: 160)
+            HeatTextEditor(text: $text, blocks: blocks, analyzedText: analyzedText,
+                           onHoverBlock: { hoveredBlock = $0 })
+                .frame(minHeight: 200)
                 .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(.secondary.opacity(0.2)))
                 .overlay(alignment: .topLeading) {
@@ -34,7 +35,7 @@ struct TextCheckView: View {
                             .allowsHitTesting(false)
                     }
                 }
-                .onChange(of: text) { verdict = nil; modelUnavailable = false }
+                .onChange(of: text) { verdict = nil; blocks = nil; hoveredBlock = nil; modelUnavailable = false }
 
             HStack {
                 Text("\(TextMetrics.wordCount(text)) words")
@@ -42,6 +43,12 @@ struct TextCheckView: View {
                     .foregroundStyle(.tertiary)
                     .monospacedDigit()
                 Spacer()
+                if let hoveredBlock {
+                    Text("Block: \(Int((hoveredBlock * 100).rounded()))% AI")
+                        .font(.system(.callout, design: .rounded).weight(.semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(hoveredBlock >= 0.5 ? Color.orange : Color.green)
+                }
                 Button(action: check) {
                     if analyzing {
                         ProgressView().controlSize(.small)
@@ -63,28 +70,43 @@ struct TextCheckView: View {
             }
         }
         .padding(16)
-        .frame(width: 420)
+        .frame(minWidth: 420, maxWidth: .infinity, minHeight: 360, maxHeight: .infinity)
     }
 
     private func check() {
         let snapshot = text
         analyzing = true
         verdict = nil
+        blocks = nil
+        hoveredBlock = nil
         modelUnavailable = false
         Task {
-            let p = await engine.analyze(text: snapshot)
+            // Score paragraph blocks once; the headline is their length-weighted
+            // mean, so it can't land outside the blocks. analyze() is only a
+            // fallback for text too short to yield a scorable block.
+            let heat = await engine.scoreBlocks(text: snapshot)
+            let p: Double?
+            if let heat, let documentScore = AIBlockScore.documentScore(heat) {
+                p = documentScore
+            } else {
+                p = await engine.analyze(text: snapshot)   // short text with no scorable block
+            }
             await MainActor.run {
                 analyzing = false
                 guard let p else { modelUnavailable = true; return }
                 let pet = registry.activePet ?? PetRegistry.nonePet
-                let line = pet.id == "none"
-                    ? PetRegistry.noneSpeechLine(forAIProbability: p)
+                // The "none" pet's line is just the AI percentage, already shown in
+                // the verdict row above — skip it so it isn't printed twice.
+                let line: String? = pet.id == "none"
+                    ? nil
                     : PetSpeechEngine.line(
                         blockID: String(PetSpeechEngine.stableHash(snapshot)),
                         petID: pet.id,
                         stateKey: DetectionState(score: p).rawValue,
                         templates: pet.speechTemplates)
                 verdict = CheckVerdict(aiProbability: p, petLine: line)
+                analyzedText = snapshot
+                blocks = heat
             }
         }
     }

@@ -112,6 +112,14 @@ The Stage-2 cascade exists to drain the ambiguous middle. The small 33M screenin
 
 Independent studies put open-source detector false-positive rates far above vendor claims. Treat every score as an indicator; the wrapper (threshold, confidence gate, length gate, trust list, personal-surface suppression) exists because the score alone can't be trusted. The Stage-2 cascade exists for the same reason: the general 33M model is weakest on register-shifted text, and the ModernBERT-large escalation catches what the screening model can't.
 
+## The Check Text window
+
+A manual surface (`TextCheckView`) separate from the automatic overlay: paste any passage and get a verdict on demand. It is deliberately ungated — the user asked for a call, so unlike the overlay there is no enable switch, trust list, or confidence/abstain gate; a verdict always comes back.
+
+Scoring runs the same Stage-1 → Stage-2 cascade through `DetectionEngine.scoreBlocks`, but on blocks built for pasted text: consecutive lines are grouped into ~80-word blocks (breaking at blank lines) rather than scored one-per-line, so a structured document — headings, one-line bullets — isn't shredded into tiny fragments the model reads unreliably. Blocks are scored by Stage-1 in one batch and the ambiguous ones escalated to Stage-2 in a second; there is no 120-word escalation floor here, because a one-off check uses the best model regardless of length and batching keeps it cheap.
+
+The headline percentage is the length-weighted mean of the block scores (`AIBlockScore.documentScore`), so it always sits within the blocks' range rather than a max-biased whole-document read that could exceed every part. The blocks drive a dark green→yellow→red heat gradient painted behind the text (`HeatBackgroundTextView`), each block's probability shown on hover. The box accepts rich text: pasted bold/italic/underline/strikethrough and lists are kept, but colours and font sizes are normalized so the text stays readable on the dark UI, and the detector still scores the plain string.
+
 ## The pet
 
 A 96-pixel verdict marker in a small floating window — one **instance per flagged block**, up to 12 at once (highest scores win, deterministically). Pets exist only while their block is flagged: they fly in beside it when the highlight appears, hold its corner while you scroll, and fly out the moment the block clears or leaves the screen. Nothing is flagged → nothing is on screen. There is no idle dock and no permanent companion; it's a pet for the detection, not a pet.

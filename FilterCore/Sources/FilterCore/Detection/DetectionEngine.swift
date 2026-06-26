@@ -1,5 +1,32 @@
 import Foundation
 
+/// One paragraph block in the check window's AI heat field: where it sits in the
+/// analyzed string (a UTF-16 `NSRange`) and its AI probability from the same
+/// Stage-1 → Stage-2 cascade the on-screen scan uses. The check view turns these
+/// into the background gradient and the per-block hover tooltips.
+public struct AIBlockScore: Sendable {
+    public let range: NSRange
+    public let probability: Double
+
+    public init(range: NSRange, probability: Double) {
+        self.range = range
+        self.probability = probability
+    }
+}
+
+extension AIBlockScore {
+    /// The document-level AI score: a length-weighted mean of the block
+    /// probabilities. It sits within [min, max] of the blocks by construction, so
+    /// the headline can never exceed the most-AI block or undercut the least —
+    /// unlike scoring the whole text as one max-biased blob. nil with no blocks.
+    public static func documentScore(_ blocks: [AIBlockScore]) -> Double? {
+        let totalWeight = blocks.reduce(0.0) { $0 + Double($1.range.length) }
+        guard totalWeight > 0 else { return nil }
+        let weighted = blocks.reduce(0.0) { $0 + $1.probability * Double($1.range.length) }
+        return weighted / totalWeight
+    }
+}
+
 public final class DetectionEngine: @unchecked Sendable {
     
     private let classifierProvider: @Sendable () -> PrimaryClassifier?
@@ -102,6 +129,81 @@ public final class DetectionEngine: @unchecked Sendable {
         }
 
         return pBase
+    }
+
+    /// Score the check window's text as paragraph blocks, the same unit the
+    /// on-screen scan works in, through the same Stage-1 → Stage-2 cascade — no
+    /// sliding window. Each block is scored by Stage-1 in one batch; the ambiguous
+    /// ones (the documented 0.40–0.93 band, or high cross-window dispersion) are
+    /// arbitrated by Stage-2 in a second batch. No length floor on escalation: a
+    /// one-off check uses the best model regardless of length, and batching keeps
+    /// it cheap. Returns nil with no license or no model.
+    ///
+    /// Consecutive lines are GROUPED into blocks rather than scored one-per-line:
+    /// a structured document (headings, one-line bullets) otherwise shreds into
+    /// tiny fragments the model reads unreliably, which then drag the average
+    /// toward whichever class short text leans. Lines accumulate until a block
+    /// reaches `targetWords`, breaking at a blank line (a real section boundary);
+    /// a leftover section under `minBlockWords` is dropped.
+    public func scoreBlocks(text: String) async -> [AIBlockScore]? {
+        guard licenseGate() else { return nil }
+        let targetWords = 80
+        let minBlockWords = 20
+
+        let ns = text as NSString
+        var lines: [(range: NSRange, words: Int)] = []
+        ns.enumerateSubstrings(
+            in: NSRange(location: 0, length: ns.length), options: [.byParagraphs]
+        ) { substring, range, _, _ in
+            guard let substring,
+                  !substring.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            lines.append((range, TextMetrics.wordCount(substring)))
+        }
+
+        var ranges: [NSRange] = []
+        var texts: [String] = []
+        var i = 0
+        while i < lines.count {
+            let start = lines[i].range.location
+            var end = NSMaxRange(lines[i].range)
+            var words = lines[i].words
+            var j = i
+            while words < targetWords, j + 1 < lines.count {
+                // A blank line (2+ newlines between two lines) is a hard break.
+                let gap = ns.substring(with: NSRange(location: end, length: lines[j + 1].range.location - end))
+                if gap.filter({ $0 == "\n" }).count >= 2 { break }
+                j += 1
+                end = NSMaxRange(lines[j].range)
+                words += lines[j].words
+            }
+            if words >= minBlockWords {
+                let range = NSRange(location: start, length: end - start)
+                ranges.append(range)
+                texts.append(ns.substring(with: range))
+            }
+            i = j + 1
+        }
+
+        guard !texts.isEmpty, let stage1 = getStage1() else { return nil }
+        if Task.isCancelled { return nil }
+
+        let s1 = (try? await stage1.score(texts: texts)) ?? []
+        guard s1.count == texts.count else { return nil }
+        var probabilities = s1.map(\.aiProbability)
+
+        // Escalate the ambiguous middle to Stage-2 in one batch, mirroring
+        // evaluate()'s gate (0.40–0.93, or dispersed) but without its word floor.
+        let escalateIndices = s1.indices.filter {
+            (s1[$0].aiProbability >= 0.40 && s1[$0].aiProbability <= 0.93) || s1[$0].uncertainty >= 0.50
+        }
+        if !escalateIndices.isEmpty, !Task.isCancelled, let stage2 = getStage2() {
+            let s2 = (try? await stage2.score(texts: escalateIndices.map { texts[$0] })) ?? []
+            for (k, index) in escalateIndices.enumerated() where k < s2.count {
+                probabilities[index] = s2[k].aiProbability
+            }
+        }
+
+        return zip(ranges, probabilities).map { AIBlockScore(range: $0, probability: $1) }
     }
 
     /// When `deferStage2` is true the slow Stage-2 model is NOT run here.
