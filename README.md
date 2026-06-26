@@ -62,8 +62,10 @@ wrong accusation is worse than a missed one.
 - Works across browsers and native apps via the Accessibility API.
 - OCR fallback (ScreenCaptureKit + Vision) for canvas surfaces.
 - A Trusted Sites list to skip domains you trust entirely.
-- A **Check Text** panel for pasting a passage and getting a verdict on demand
-  (requires an activated license).
+- A **Check Text** panel for pasting a passage and getting a length-weighted
+  block-mean verdict on demand, with each block's AI probability painted as a
+  heat gradient behind the text and shown on hover (requires an activated
+  license).
 - A live pet-size slider that resizes every on-screen marker.
 - "Erase All Local Data" wipes every local setting in one click; an activated
   license key is preserved so a reset never drops a paid key.
