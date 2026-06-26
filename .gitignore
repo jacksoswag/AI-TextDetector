@@ -81,3 +81,4 @@ docs/audits/
 # Local-only Claude skills (per-repo tooling, not published)
 .claude/skills/
 .arc/
+data/corpus_oasst/

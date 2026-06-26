@@ -1,8 +1,9 @@
 {
   "source_repo": "ModernBERT-large Stage-2 cascade detector, fine-tuned on a deconfounded matched-pair corpus",
   "license": "apache-2.0",
+  "base_model": "answerdotai/ModernBERT-large",
   "architecture": "modernbert + sequence classification head",
-  "param_count_estimate": 395834371,
+  "param_count_estimate": 395833346,
   "seq_len": 512,
   "ai_label_index": 1,
   "num_labels": 2,
@@ -34,15 +35,15 @@
   "package_size_mb": 755.88,
   "precision": "fp16",
   "compiled_size_mb": 757.24,
-  "parity_max_abs_diff": 0.000107,
+  "parity_max_abs_diff": 0.000197,
   "latency_ms": {
-    "median": 69.49,
-    "p90": 69.92
+    "median": 74.3,
+    "p90": 76.52
   },
   "sample_scores": [
     {
       "text_kind": "ai",
-      "pytorch_prob_ai": 1.0,
+      "pytorch_prob_ai": 0.999889,
       "coreml_prob_ai": 1.0
     },
     {
@@ -52,23 +53,23 @@
     },
     {
       "text_kind": "ai",
-      "pytorch_prob_ai": 1.0,
+      "pytorch_prob_ai": 0.99998,
       "coreml_prob_ai": 1.0
     },
     {
       "text_kind": "human",
-      "pytorch_prob_ai": 0.999454,
+      "pytorch_prob_ai": 0.997937,
+      "coreml_prob_ai": 0.998047
+    },
+    {
+      "text_kind": "human",
+      "pytorch_prob_ai": 0.99988,
+      "coreml_prob_ai": 1.0
+    },
+    {
+      "text_kind": "human",
+      "pytorch_prob_ai": 0.999709,
       "coreml_prob_ai": 0.999512
-    },
-    {
-      "text_kind": "human",
-      "pytorch_prob_ai": 0.999893,
-      "coreml_prob_ai": 1.0
-    },
-    {
-      "text_kind": "human",
-      "pytorch_prob_ai": 0.999949,
-      "coreml_prob_ai": 1.0
     }
   ],
   "role": "stage2 cascade model \u2014 escalation target for the 0.40\u20130.93 uncertain band"

@@ -1,6 +1,7 @@
 {
   "source_repo": "e5-small AI-text detector, fine-tuned on a deconfounded matched-pair corpus",
   "license": "mit",
+  "base_model": "intfloat/e5-small-v2",
   "architecture": "bert (e5-small, BERT encoder, 12 layers, hidden 384)",
   "param_count_estimate": 33360770,
   "seq_len": 256,
@@ -29,50 +30,50 @@
   "model_max_length_note": "tokenizer_config.json has the unset sentinel (1e30); effective limit is max_position_embeddings=512, this export uses fixed seq_len=256",
   "fp16_size_mb": 63.77,
   "int8_size_mb": 32.21,
-  "parity_max_abs_diff_fp16": 0.001801,
-  "parity_max_abs_diff_int8": 0.071992,
+  "parity_max_abs_diff_fp16": 0.00141,
+  "parity_max_abs_diff_int8": 0.196833,
   "latency_ms_fp16": {
     "median": 3.57,
-    "p90": 3.66
+    "p90": 3.81
   },
   "latency_ms_int8": {
-    "median": 3.41,
-    "p90": 3.51
+    "median": 3.57,
+    "p90": 3.82
   },
   "sample_scores": [
     {
       "text_kind": "ai",
-      "pytorch_prob_ai": 0.997504,
-      "coreml_prob_ai": 0.99707
+      "pytorch_prob_ai": 0.998974,
+      "coreml_prob_ai": 0.999023
     },
     {
       "text_kind": "ai",
-      "pytorch_prob_ai": 0.997503,
-      "coreml_prob_ai": 0.998047
+      "pytorch_prob_ai": 0.999227,
+      "coreml_prob_ai": 0.999023
     },
     {
       "text_kind": "ai",
-      "pytorch_prob_ai": 0.997449,
-      "coreml_prob_ai": 0.99707
+      "pytorch_prob_ai": 0.998874,
+      "coreml_prob_ai": 0.999023
     },
     {
       "text_kind": "human",
-      "pytorch_prob_ai": 0.129121,
-      "coreml_prob_ai": 0.127319
+      "pytorch_prob_ai": 0.444635,
+      "coreml_prob_ai": 0.446045
     },
     {
       "text_kind": "human",
-      "pytorch_prob_ai": 0.991659,
-      "coreml_prob_ai": 0.991211
+      "pytorch_prob_ai": 0.992854,
+      "coreml_prob_ai": 0.992188
     },
     {
       "text_kind": "human",
-      "pytorch_prob_ai": 0.989981,
-      "coreml_prob_ai": 0.990234
+      "pytorch_prob_ai": 0.995302,
+      "coreml_prob_ai": 0.995117
     }
   ],
   "calibration": {
-    "temperature": 1.2327,
-    "bias": -1.473
+    "temperature": 1.1539,
+    "bias": -0.5999
   }
 }
