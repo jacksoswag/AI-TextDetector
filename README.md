@@ -30,8 +30,6 @@ wrong accusation is worse than a missed one.
 - **Out of your way.** Highlights are click-through brackets on the left edge of
   the flagged block. Nothing is dimmed, blurred, blocked, or hidden. A clean
   page shows nothing at all.
-- **One-time price.** $4.99, perpetual license for the current major version. No
-  subscription.
 
 ## Features
 
@@ -97,13 +95,6 @@ documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 2. Launch it from the menu bar and grant **Accessibility** once when asked.
 3. Optionally grant **Screen Recording** if you want the OCR fallback for canvas
    surfaces like Google Docs.
-
-## Pricing
-
-Pilcrow is a one-time $4.99 purchase, for use on your own Macs, refundable
-within 14 days. Buy it and your license key arrives by email; paste it into the
-menu (Enter License) to unlock detection, both watching as you read and the
-manual Check Text. Buy at https://spect-crow.lemonsqueezy.com/checkout/buy/f9643e6f-058f-4da1-841f-8ef58c56ddb6.
 
 ## Limitations
 
