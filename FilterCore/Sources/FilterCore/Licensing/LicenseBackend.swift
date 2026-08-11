@@ -4,29 +4,24 @@ import Foundation
 enum LicenseValidation: Sendable {
     case valid
     case invalid
-    /// The server couldn't be reached (offline, timeout, or unexpected response).
-    /// Distinct from `.invalid` so activation fails closed — the app never stores
-    /// an unverified key, and a transient outage at activation is "try again",
-    /// not "rejected".
+    /// The backend couldn't be reached. Distinct from `.invalid` so activation
+    /// fails closed: an unverified key is never stored, and a transient outage
+    /// reads as "try again" rather than "rejected".
     case unreachable
 }
 
-/// Abstraction over the licensing server, so the call site (`LicenseManager`)
-/// does not depend on Lemon Squeezy directly and tests can inject a fake.
+/// Abstraction over key validation, so `LicenseManager` depends on no particular
+/// implementation and tests can inject a fake.
 protocol LicenseBackend: Sendable {
     func validate(key: String) async -> LicenseValidation
 }
 
-#if DEBUG
-/// Offline stub used in DEBUG builds (and as the default test backend) until the
-/// live Lemon Squeezy store exists. Accepts a well-formed test key of the form
-/// `PILCROW-XXXX-XXXX-XXXX` so the whole activation + relaunch flow can be
-/// exercised with no network and no account. Never compiled into a release.
-struct StubLicenseBackend: LicenseBackend {
+/// Validates entirely on-device against a key shape. No network, no account, no
+/// store. This is the only backend the open build ships.
+struct LocalLicenseBackend: LicenseBackend {
     func validate(key: String) async -> LicenseValidation {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        let pattern = #"^PILCROW(-[A-Z0-9]{4}){3}$"#
+        let pattern = #"^[A-Z0-9]{4}(-[A-Z0-9]{4}){3}$"#
         return trimmed.range(of: pattern, options: .regularExpression) != nil ? .valid : .invalid
     }
 }
-#endif

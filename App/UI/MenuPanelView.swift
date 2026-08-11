@@ -564,18 +564,12 @@ private struct LicenseSection: View {
             }
         case .unlicensed:
             VStack(alignment: .leading, spacing: 6) {
-                Label("Pilcrow is a paid app", systemImage: "lock.fill")
+                Label("Detection is locked", systemImage: "lock.fill")
                     .font(.callout.weight(.medium)).foregroundStyle(.orange)
-                Text("Buy once to unlock detection: both watching as you read and the manual Check Text.")
+                Text("Enter a license key to unlock detection: both watching as you read and the manual Check Text.")
                     .font(.caption2).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                HStack {
-                    Button("Buy Pilcrow") { manager.openPurchase() }
-                        .controlSize(.small).buttonStyle(.borderedProminent)
-                    Button("Enter License") { showEntry = true }.controlSize(.small)
-                }
-                Text("14 days to change your mind, refunded on request.")
-                    .font(.caption2).foregroundStyle(.tertiary)
+                Button("Enter License") { showEntry = true }.controlSize(.small)
             }
             .padding(8)
             .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
@@ -645,10 +639,6 @@ private struct AboutFooter: View {
         HStack(spacing: 10) {
             Text("Pilcrow v\(version)").font(.caption2).foregroundStyle(.secondary)
             Spacer()
-            Button("Privacy") { manager.openPrivacyPage() }
-                .buttonStyle(.plain).font(.caption2).foregroundStyle(.secondary)
-            Button("Terms") { manager.openTermsPage() }
-                .buttonStyle(.plain).font(.caption2).foregroundStyle(.secondary)
         }
     }
 }

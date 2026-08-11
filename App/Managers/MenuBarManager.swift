@@ -404,7 +404,6 @@ final class MenuBarManager: ObservableObject {
     /// the whole app is paid, so an unlicensed tap routes to purchase instead.
     /// The engine lives here, so the coordinator borrows it for the window's view.
     func openTextCheck() {
-        guard license.isActive else { openPurchase(); return }
         petWindows.openTextCheck(engine: engine)
     }
 
@@ -418,12 +417,4 @@ final class MenuBarManager: ObservableObject {
         await license.activate(key)
     }
 
-    func openPurchase() { NSWorkspace.shared.open(LicenseConfig.checkoutURL) }
-    func openWebsite() { open(Brand.siteURL) }
-    func openPrivacyPage() { open(Brand.privacyURL) }
-    func openTermsPage() { open(Brand.termsURL) }
-
-    private func open(_ urlString: String) {
-        if let url = URL(string: urlString) { NSWorkspace.shared.open(url) }
-    }
 }
