@@ -27,7 +27,7 @@ settings:
     CODE_SIGN_STYLE: Manual
     CODE_SIGN_IDENTITY: AICF Local Dev Signing
     # OWNER-GATED placeholder: set to your Apple Developer Team ID for a notarized
-    # Developer ID distribution build (see LAUNCH-CHECKLIST.md). Empty means local
+    # Developer ID distribution build. Empty means local
     # dev signing, which is team-less.
     DEVELOPMENT_TEAM: ""
     CURRENT_PROJECT_VERSION: "2"

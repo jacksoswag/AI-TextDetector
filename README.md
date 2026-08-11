@@ -15,8 +15,7 @@ wrong accusation is worse than a missed one.
 ![The Pilcrow menu-bar menu](docs/assets/screenshot-menu.png)
 *One master switch, a threshold slider, and a trusted-sites list. No scan button.*
 
-> Screenshots are placeholders until the release build is captured. See
-> `LAUNCH-CHECKLIST.md`.
+> Screenshots are placeholders until the release build is captured.
 
 ## Why Pilcrow
 
